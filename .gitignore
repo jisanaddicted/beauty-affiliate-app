@@ -1,0 +1,13 @@
+# Ignore all node_modules in any folder
+node_modules/
+
+# Ignore production build folders
+dist/
+build/
+
+# Ignore backend secrets
+.env
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
