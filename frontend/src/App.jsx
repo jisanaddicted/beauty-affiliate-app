@@ -89,7 +89,7 @@ export default function App() {
       console.error("Full Backend Error Details:", err.response?.data);
       setErrorMessage(err.response?.data?.message || 'Authentication failed. Try again.');
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
     }
   };
 
@@ -105,13 +105,24 @@ export default function App() {
   };
 
   const handleCopyLink = (product) => {
-    // 🔗 Reads your specific URL field from the database entry
-    const targetBaseUrl = product.productUrl || "https://your-shopify-store.com/products/default";
-    const dynamicReferralLink = `${targetBaseUrl}?ref=${affiliate.affiliateCode}`;
+    if (!product.productUrl) return;
+
+    // 1. Cleanly check trailing slashed limits
+    const baseUrl = product.productUrl.endsWith('/') 
+      ? product.productUrl 
+      : `${product.productUrl}/`;
+
+    // 2. Glue variables together natively using the verified profile state tracker
+    const fullTrackingLink = `${baseUrl}${product._id}?ref=${affiliate.affiliateCode}`;
+
+    // 3. Command OS system clip write profile
+    navigator.clipboard.writeText(fullTrackingLink);
     
-    navigator.clipboard.writeText(dynamicReferralLink);
+    // 4. Update UI visual status state indicators
     setCopiedId(product._id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 2000);
   };
 
   /* ==========================================
@@ -349,42 +360,47 @@ export default function App() {
                 <p className="text-xs text-gray-400 mt-1">Insert data records in MongoDB Compass to populate your hub grid.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-                {products.map((product) => (
-                  <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-black transition-all">
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="text-xs font-semibold px-2.5 py-1 bg-neutral-100 text-neutral-800 rounded-full">SKU: {product.sku || "N/A"}</span>
-                        <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
-                          Earn {product.commissionRate}%
-                        </span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 text-lg mb-1">{product.name}</h3>
-                      <p className="text-sm font-medium text-gray-500 mb-4">Retail Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
-                    </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {products.map((product) => {
+                  const cleanedBase = product.productUrl?.endsWith('/') ? product.productUrl : `${product.productUrl || ''}/`;
+                  const previewLink = `${cleanedBase}${product._id}?ref=${affiliate.affiliateCode}`;
 
-                    <div className="border-t border-gray-100 pt-4 mt-2">
-                      <div className="bg-neutral-50 border border-neutral-200/60 rounded-xl p-3 flex justify-between items-center gap-3">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <Link2 size={14} className="text-gray-400 shrink-0" />
-                          <span className="text-xs font-mono text-gray-400 truncate select-all">
-                            {`${product.productUrl || 'https://store.com/product'}?ref=${affiliate.affiliateCode}`}
+                  return (
+                    <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-black transition-all">
+                      <div>
+                        <div className="flex justify-between items-start mb-3">
+                          <span className="text-xs font-semibold px-2.5 py-1 bg-neutral-100 text-neutral-800 rounded-full">SKU: {product.sku || "N/A"}</span>
+                          <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                            Earn {product.commissionRate}%
                           </span>
                         </div>
-                        <button 
-                          onClick={() => handleCopyLink(product)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white hover:bg-neutral-800'}`}
-                        >
-                          {copiedId === product._id ? (
-                            <><Check size={12} /> Copied!</>
-                          ) : (
-                            <><Copy size={12} /> Copy Link</>
-                          )}
-                        </button>
+                        <h3 className="font-semibold text-gray-900 text-lg mb-1">{product.name}</h3>
+                        <p className="text-sm font-medium text-gray-500 mb-4">Retail Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-4 mt-2">
+                        <div className="bg-neutral-50 border border-neutral-200/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <Link2 size={14} className="text-gray-400 shrink-0" />
+                            <span className="text-xs font-mono text-gray-400 truncate select-all">
+                              {previewLink}
+                            </span>
+                          </div>
+                          <button 
+                            onClick={() => handleCopyLink(product)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white hover:bg-neutral-800'}`}
+                          >
+                            {copiedId === product._id ? (
+                              <><Check size={12} /> Copied!</>
+                            ) : (
+                              <><Copy size={12} /> Copy Link</>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
