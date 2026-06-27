@@ -1,22 +1,49 @@
 import express from 'express';
-import { createOrder } from '../controllers/orderController.js';
+import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import Affiliate from '../models/Affiliate.js'; // Make sure your user model file path matches this file name
 
 const router = express.Router();
 
-/**
- * @route   POST /api/orders
- * @desc    Route to capture and process a checkout order sale
- */
-router.post('/', createOrder);
-
-export default router;
-import Product from '../models/Product.js';
-// Temporary endpoint to create products for testing
-router.post('/test-product', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const product = await Product.create(req.body);
-    return res.status(201).json(product);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+    const { productId, customerName, customerEmail, shippingAddress, referralCode } = req.body;
+
+    // 1. Locate the item to verify price metrics
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ message: 'Target product not found.' });
+
+    // 2. Compute commission percentage payouts
+    let commissionEarned = 0;
+    if (referralCode) {
+      commissionEarned = (product.price * product.commissionRate) / 100;
+    }
+
+    // 3. Create the order record entry
+    const newOrder = new Order({
+      product: productId,
+      customerName,
+      customerEmail,
+      shippingAddress,
+      referralCode,
+      commissionEarned
+    });
+    await newOrder.save();
+
+    // 4. Update the Affiliate's pending tracking dashboard values if tracking exists
+    if (referralCode) {
+      const creatorProfile = await Affiliate.findOne({ affiliateCode: referralCode });
+      if (creatorProfile) {
+        creatorProfile.balance.pendingBalance += commissionEarned;
+        creatorProfile.balance.totalEarned += commissionEarned;
+        await creatorProfile.save();
+      }
+    }
+
+    res.status(201).json({ message: 'Order submitted and affiliate commission credited.', order: newOrder });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal processing error', error: error.message });
   }
 });
+
+export default router;

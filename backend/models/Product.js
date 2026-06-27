@@ -17,7 +17,7 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Commission rate percentage is required'],
       min: [0, 'Commission cannot be negative'],
       max: [100, 'Commission cannot exceed 100%'],
-      default: 10, // Defaults to 10% commission
+      default: 10,
     },
     sku: {
       type: String,
@@ -26,13 +26,40 @@ const productSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+    productUrl: {
+      type: String,
+      required: [true, 'Target storefront destination URL is required'],
+      trim: true,
+    },
+    // ✨ NEW DATA FIELDS FOR HIGH-CONVERSION LANDING PAGES
+    description: {
+      type: String,
+      required: [true, 'Product description is required for the landing page'],
+      trim: true,
+    },
+    category: {
+      type: String,
+      default: 'Skincare',
+      trim: true,
+    },
+    stock: {
+      type: Number,
+      required: [true, 'Stock count is required'],
+      min: [0, 'Stock cannot be negative'],
+      default: 50,
+    },
+    highlights: {
+      type: [String], // Array of short benefit tags (e.g., ["Cruelty-Free", "Vegan", "10% Vit C"])
+      default: [],
+    },
     image: {
       type: String,
-      default: '',
-    },
+      default: '', // Main display image URL
+    }
   },
   {
     timestamps: true,
+    collection: 'products'
   }
 );
 

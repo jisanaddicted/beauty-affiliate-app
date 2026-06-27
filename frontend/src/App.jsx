@@ -1,22 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check } from 'lucide-react';
 
 export default function App() {
   // Authentication & View States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'products'
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
 
   // Form input states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userCode, setUserCode] = useState(''); // ✅ Fixed: Tracks custom code input for backend payload
+  const [userCode, setUserCode] = useState('');
 
-  // Dynamic profile status state (Starts blank!)
+  // Products array state
+  const [products, setProducts] = useState([]);
+
+  // Dynamic profile status state
   const [affiliate, setAffiliate] = useState({
     name: "",
     email: "",
@@ -32,7 +37,13 @@ export default function App() {
     }
   }, []);
 
-  // 🛰️ FETCH PROTECTED DASHBOARD METRICS FROM BACKEND
+  // 🛍️ FETCH ALL MARKETPLACE PRODUCTS AFTER LOGIN
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchProducts();
+    }
+  }, [isLoggedIn]);
+
   const fetchDashboardData = async (token) => {
     try {
       const response = await axios.get('http://localhost:5000/api/affiliates/dashboard', {
@@ -41,13 +52,21 @@ export default function App() {
       setAffiliate(response.data);
       setIsLoggedIn(true);
     } catch (err) {
-      // Token expired or invalid
       localStorage.removeItem('token');
       setIsLoggedIn(false);
     }
   };
 
-  // 🚀 HANDLE LOGIN & SIGNUP SUBMISSIONS
+  const fetchProducts = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/products');
+      setProducts(response.data);
+    } catch (err) {
+      console.warn("Backend products endpoint error. Using fallback placeholder.");
+      setProducts([]);
+    }
+  };
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -55,28 +74,15 @@ export default function App() {
 
     try {
       if (authMode === 'signup') {
-        // 1. ✅ Fixed: Hit Registration passing the custom affiliate code to meet backend validation requirements
-        await axios.post('http://localhost:5000/api/auth/register', { 
-          name, 
-          email, 
-          password, 
-          affiliateCode: userCode 
-        });
-        
-        // 2. ✅ Fixed: Auto-sign in right after registration so they jump straight into the dashboard experience
+        await axios.post('http://localhost:5000/api/auth/register', { name, email, password, affiliateCode: userCode });
         const loginResponse = await axios.post('http://localhost:5000/api/auth/login', { email, password });
         const token = loginResponse.data.token;
         localStorage.setItem('token', token);
         await fetchDashboardData(token);
       } else {
-        // 3. Hit the Login endpoint
         const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-        
-        // 4. Extract token from response and save to localStorage
         const token = response.data.token;
         localStorage.setItem('token', token);
-        
-        // 5. Pull down this specific user's database entry
         await fetchDashboardData(token);
       }
     } catch (err) {
@@ -90,11 +96,22 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
+    setActiveTab('dashboard');
     setName('');
     setEmail('');
     setPassword('');
     setUserCode('');
     setErrorMessage('');
+  };
+
+  const handleCopyLink = (product) => {
+    // 🔗 Reads your specific URL field from the database entry
+    const targetBaseUrl = product.productUrl || "https://your-shopify-store.com/products/default";
+    const dynamicReferralLink = `${targetBaseUrl}?ref=${affiliate.affiliateCode}`;
+    
+    navigator.clipboard.writeText(dynamicReferralLink);
+    setCopiedId(product._id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   /* ==========================================
@@ -138,7 +155,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Error Notification Alert */}
             {errorMessage && (
               <div className={`p-4 rounded-xl text-sm mb-4 font-medium ${errorMessage.includes('successfully') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                 {errorMessage}
@@ -149,7 +165,6 @@ export default function App() {
               
               {authMode === 'signup' && (
                 <>
-                  {/* FULL NAME */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Full Name</label>
                     <div className="relative">
@@ -162,7 +177,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* DESIRED AFFILIATE CODE FIELD */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Desired Affiliate Code</label>
                     <div className="relative">
@@ -177,7 +191,6 @@ export default function App() {
                 </>
               )}
 
-              {/* EMAIL ADDRESS */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Email Address</label>
                 <div className="relative">
@@ -190,7 +203,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* PASSWORD */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Password</label>
@@ -245,7 +257,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex bg-[#FAFAFA]">
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR NAVIGATION CONTROLS */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between p-6">
         <div>
           <div className="flex items-center gap-3 mb-8 px-2">
@@ -253,7 +265,18 @@ export default function App() {
             <span className="font-bold text-lg tracking-tight">GlowAffiliate</span>
           </div>
           <nav className="space-y-1">
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 bg-black text-white font-medium rounded-lg text-sm"><LayoutDashboard size={18} /> Dashboard</a>
+            <button 
+              onClick={() => setActiveTab('dashboard')} 
+              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'dashboard' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <LayoutDashboard size={18} /> Dashboard
+            </button>
+            <button 
+              onClick={() => setActiveTab('products')} 
+              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Tag size={18} /> Find Products
+            </button>
             <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><ShoppingBag size={18} /> Orders History</a>
             <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><Wallet size={18} /> Payouts</a>
             <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><User size={18} /> Settings</a>
@@ -262,7 +285,7 @@ export default function App() {
         <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full"><LogOut size={18} /> Log Out</button>
       </aside>
 
-      {/* MAIN VIEW */}
+      {/* MAIN VIEW COMPONENT GRID */}
       <main className="flex-1 p-10 max-w-7xl mx-auto w-full">
         <header className="flex justify-between items-center mb-10">
           <div>
@@ -275,43 +298,97 @@ export default function App() {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {/* CARD 1: PENDING */}
-          <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Pending Balance</p>
-                <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.pendingBalance || 0).toFixed(2)}</h3>
+        {activeTab === 'dashboard' ? (
+          /* DASHBOARD ANALYTICS TRACKING OVERVIEW */
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Pending Balance</p>
+                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.pendingBalance || 0).toFixed(2)}</h3>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-xl text-amber-600 border border-amber-100"><Clock size={20} /></div>
               </div>
-              <div className="p-3 bg-amber-50 rounded-xl text-amber-600 border border-amber-100"><Clock size={20} /></div>
+              <p className="text-xs text-amber-600 font-medium mt-4">• Held safely during product return window</p>
             </div>
-            <p className="text-xs text-amber-600 font-medium mt-4">• Held safely during product return window</p>
-          </div>
 
-          {/* CARD 2: WITHDRAWABLE */}
-          <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Withdrawable Cash</p>
-                <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.withdrawableBalance || 0).toFixed(2)}</h3>
+            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Withdrawable Cash</p>
+                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.withdrawableBalance || 0).toFixed(2)}</h3>
+                </div>
+                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100"><DollarSign size={20} /></div>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100"><DollarSign size={20} /></div>
+              <button className="mt-4 text-xs bg-gray-900 text-white px-3 py-1.5 font-semibold rounded-lg opacity-50 cursor-not-allowed" disabled>Request Payout</button>
             </div>
-            <button className="mt-4 text-xs bg-gray-900 text-white px-3 py-1.5 font-semibold rounded-lg opacity-50 cursor-not-allowed" disabled>Request Payout</button>
-          </div>
 
-          {/* CARD 3: TOTAL */}
-          <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Total Earnings</p>
-                <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.totalEarned || 0).toFixed(2)}</h3>
+            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Total Earnings</p>
+                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.totalEarned || 0).toFixed(2)}</h3>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl text-blue-600 border border-blue-100"><TrendingUp size={20} /></div>
               </div>
-              <div className="p-3 bg-blue-50 rounded-xl text-blue-600 border border-blue-100"><TrendingUp size={20} /></div>
+              <p className="text-xs text-gray-500 font-medium mt-4">All-time career revenue generated</p>
             </div>
-            <p className="text-xs text-gray-500 font-medium mt-4">All-time career revenue generated</p>
-          </div>
-        </section>
+          </section>
+        ) : (
+          /* PRODUCT CAMPAIGN MARKETPLACE VIEW */
+          <section>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold tracking-tight text-gray-900">Affiliate Brand Marketplace</h2>
+              <p className="text-sm text-gray-500 mt-1">Select highly curated items to promote on your social feeds and tracking channels.</p>
+            </div>
+
+            {products.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-500">
+                <Tag size={32} className="mx-auto mb-3 text-gray-300" />
+                <p className="font-medium text-gray-700">No storefront products found</p>
+                <p className="text-xs text-gray-400 mt-1">Insert data records in MongoDB Compass to populate your hub grid.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                {products.map((product) => (
+                  <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-black transition-all">
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-xs font-semibold px-2.5 py-1 bg-neutral-100 text-neutral-800 rounded-full">SKU: {product.sku || "N/A"}</span>
+                        <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                          Earn {product.commissionRate}%
+                        </span>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 text-lg mb-1">{product.name}</h3>
+                      <p className="text-sm font-medium text-gray-500 mb-4">Retail Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-4 mt-2">
+                      <div className="bg-neutral-50 border border-neutral-200/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <Link2 size={14} className="text-gray-400 shrink-0" />
+                          <span className="text-xs font-mono text-gray-400 truncate select-all">
+                            {`${product.productUrl || 'https://store.com/product'}?ref=${affiliate.affiliateCode}`}
+                          </span>
+                        </div>
+                        <button 
+                          onClick={() => handleCopyLink(product)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white hover:bg-neutral-800'}`}
+                        >
+                          {copiedId === product._id ? (
+                            <><Check size={12} /> Copied!</>
+                          ) : (
+                            <><Copy size={12} /> Copy Link</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );
