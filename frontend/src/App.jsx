@@ -1,30 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check } from 'lucide-react';
-
-// Import your new dashboard component cleanly
-import CreatorDashboard from './CreatorDashboard';
+import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check, Menu, X } from 'lucide-react';
+import CreatorDashboard from './CreatorDashboard'; 
 
 export default function App() {
-  // Authentication & View States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'products', or 'orders'
+  const [authMode, setAuthMode] = useState('login'); 
+  const [activeTab, setActiveTab] = useState('dashboard'); 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+  
+  // NEW: Mobile Navigation Sidebar Drawer Toggle State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Form input states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [userCode, setUserCode] = useState('');
-
-  // Products array state
   const [products, setProducts] = useState([]);
-
-  // Dynamic profile status state
   const [affiliate, setAffiliate] = useState({
     name: "",
     email: "",
@@ -32,19 +27,13 @@ export default function App() {
     balance: { pendingBalance: 0, withdrawableBalance: 0, totalEarned: 0 }
   });
 
-  // 🔄 CHECK FOR EXISTING SESSION ON LOAD
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      fetchDashboardData(token);
-    }
+    if (token) fetchDashboardData(token);
   }, []);
 
-  // 🛍️ FETCH ALL MARKETPLACE PRODUCTS AFTER LOGIN
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchProducts();
-    }
+    if (isLoggedIn) fetchProducts();
   }, [isLoggedIn]);
 
   const fetchDashboardData = async (token) => {
@@ -65,7 +54,6 @@ export default function App() {
       const response = await axios.get('http://localhost:5000/api/products');
       setProducts(response.data);
     } catch (err) {
-      console.warn("Backend products endpoint error. Using fallback placeholder.");
       setProducts([]);
     }
   };
@@ -74,25 +62,21 @@ export default function App() {
     e.preventDefault();
     setLoading(true);
     setErrorMessage('');
-
     try {
       if (authMode === 'signup') {
         await axios.post('http://localhost:5000/api/auth/register', { name, email, password, affiliateCode: userCode });
         const loginResponse = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-        const token = loginResponse.data.token;
-        localStorage.setItem('token', token);
-        await fetchDashboardData(token);
+        localStorage.setItem('token', loginResponse.data.token);
+        await fetchDashboardData(loginResponse.data.token);
       } else {
         const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-        const token = response.data.token;
-        localStorage.setItem('token', token);
-        await fetchDashboardData(token);
+        localStorage.setItem('token', response.data.token);
+        await fetchDashboardData(response.data.token);
       }
     } catch (err) {
-      console.error("Full Backend Error Details:", err.response?.data);
-      setErrorMessage(err.response?.data?.message || 'Authentication failed. Try again.');
+      setErrorMessage(err.response?.data?.message || 'Authentication failed.');
     } finally {
-      if (loading) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -100,154 +84,74 @@ export default function App() {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     setActiveTab('dashboard');
-    setName('');
-    setEmail('');
-    setPassword('');
-    setUserCode('');
-    setErrorMessage('');
   };
 
   const handleCopyLink = (product) => {
     if (!product.productUrl) return;
-
-    const baseUrl = product.productUrl.endsWith('/')
-      ? product.productUrl
-      : `${product.productUrl}/`;
-
+    const baseUrl = product.productUrl.endsWith('/') ? product.productUrl : `${product.productUrl}/`;
     const fullTrackingLink = `${baseUrl}${product._id}?ref=${affiliate.affiliateCode}`;
-
     navigator.clipboard.writeText(fullTrackingLink);
-
     setCopiedId(product._id);
-    setTimeout(() => {
-      setCopiedId(null);
-    }, 2000);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
-  /* ==========================================
-      RENDER BLOCK 1: AUTHENTICATION INTERFACE 
-     ========================================== */
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-white">
-        {/* LEFT COLUMN: VISUAL BRANDING PANEL */}
         <div className="hidden lg:flex flex-col justify-between p-12 bg-neutral-950 text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.15),transparent_50%)]" />
           <div className="flex items-center gap-3 relative z-10">
-            <div className="h-8 w-8 bg-white text-black flex items-center justify-center font-black rounded text-xs tracking-wider">B&F</div>
+            <div className="h-8 w-8 bg-white text-black flex items-center justify-center font-black rounded text-xs">B&F</div>
             <span className="font-bold tracking-tight text-sm uppercase">GlowAffiliate Studio</span>
           </div>
           <div className="max-w-md relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-full text-xs text-amber-400 mb-6 font-medium">
-              <Sparkles size={12} /> Beauty & Fashion Specialist Hub
-            </div>
             <h2 className="text-4xl font-light tracking-tight leading-tight mb-4">
               Turn your aesthetic curation into <span className="font-serif italic text-amber-200">scalable revenue</span>.
             </h2>
-            <p className="text-neutral-400 text-sm leading-relaxed">
-              Join an elite network of digital creators tracking multi-tier storefront analytics, conversion loops, and automated payouts natively.
-            </p>
           </div>
-          <p className="text-xs text-neutral-600 relative z-10">&copy; 2026 GlowAffiliate Architecture.</p>
+          <p className="text-xs text-neutral-600 relative z-10">&copy; 2026 GlowAffiliate.</p>
         </div>
 
-        {/* RIGHT COLUMN: INTERACTIVE FORM LAYOUT */}
-        <div className="flex flex-col justify-center p-8 sm:p-16 lg:p-24 bg-white">
+        {/* AUTH COMPONENT PORTFOLIO (MOBILE OPTIMIZED PADDING) */}
+        <div className="flex flex-col justify-center p-6 sm:p-16 lg:p-24 bg-white">
           <div className="w-full max-w-md mx-auto">
-            <div className="mb-8">
-              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+            <div className="mb-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
                 {authMode === 'login' ? 'Sign in to your dashboard' : 'Create your creator account'}
               </h1>
-              <p className="text-sm text-neutral-500 mt-2">
-                {authMode === 'login' ? 'Welcome back! Enter your portal credentials.' : 'Start monetizing your traffic paths in under 2 minutes.'}
-              </p>
             </div>
 
-            {errorMessage && (
-              <div className={`p-4 rounded-xl text-sm mb-4 font-medium ${errorMessage.includes('successfully') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                {errorMessage}
-              </div>
-            )}
+            {errorMessage && <div className="p-4 rounded-xl text-xs bg-red-50 text-red-800 border border-red-100 mb-4">{errorMessage}</div>}
 
-            <form onSubmit={handleAuthSubmit} className="space-y-5">
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
               {authMode === 'signup' && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Full Name</label>
-                    <div className="relative">
-                      <input
-                        type="text" required placeholder="e.g., Jisan Rahman" value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
-                      />
-                      <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    </div>
+                    <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Full Name</label>
+                    <input type="text" required placeholder="Jisan Rahman" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 border rounded-xl text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Desired Affiliate Code</label>
-                    <div className="relative">
-                      <input
-                        type="text" required placeholder="e.g., JISAN10, GLOWQUEEN" value={userCode}
-                        onChange={(e) => setUserCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                        className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50 font-mono tracking-wide"
-                      />
-                      <Sparkles size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    </div>
+                    <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Desired Affiliate Code</label>
+                    <input type="text" required placeholder="JISAN10" value={userCode} onChange={(e) => setUserCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} className="w-full p-3 border rounded-xl text-sm font-mono" />
                   </div>
                 </>
               )}
-
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Email Address</label>
-                <div className="relative">
-                  <input
-                    type="email" required placeholder="jisan@example.com" value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
-                  />
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                </div>
+                <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Email</label>
+                <input type="email" required placeholder="jisan@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 border rounded-xl text-sm" />
               </div>
-
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Password</label>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
-                  />
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                  <button
-                    type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-black"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Password</label>
+                <input type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 border rounded-xl text-sm" />
               </div>
-
-              <button
-                type="submit" disabled={loading}
-                className="w-full bg-neutral-950 hover:bg-black text-white py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all mt-2 disabled:opacity-50"
-              >
-                {loading ? 'Processing System Network...' : authMode === 'login' ? 'Access Dashboard' : 'Generate Creator Code'}
+              <button type="submit" disabled={loading} className="w-full bg-neutral-950 text-white py-3 rounded-xl text-sm font-semibold mt-2">
+                {loading ? 'Processing...' : authMode === 'login' ? 'Access Dashboard' : 'Generate Code'}
               </button>
             </form>
-
             <div className="text-center mt-6">
-              <p className="text-sm text-neutral-500">
-                {authMode === 'login' ? "Don't have an account? " : "Already tracking metrics? "}
-                <button
-                  onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setErrorMessage(''); }}
-                  className="font-bold text-neutral-900 hover:underline"
-                >
-                  {authMode === 'login' ? 'Register here' : 'Sign in'}
-                </button>
-              </p>
+              <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="text-xs font-bold text-neutral-900 underline">
+                {authMode === 'login' ? 'Register here' : 'Sign in'}
+              </button>
             </div>
           </div>
         </div>
@@ -255,109 +159,101 @@ export default function App() {
     );
   }
 
-  /* ==========================================
-      RENDER BLOCK 2: LIVE METRICS PORTAL
-     ========================================== */
+  // SHARED NAV LOGIC HELPERS FOR REUSE
+  const NavLinks = () => (
+    <>
+      <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'dashboard' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutDashboard size={18} /> Dashboard</button>
+      <button onClick={() => { setActiveTab('products'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}><Tag size={18} /> Find Products</button>
+      <button onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'orders' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}><ShoppingBag size={18} /> Orders History</button>
+      <button onClick={() => { setActiveTab('payouts'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'payouts' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}><Wallet size={18} /> Payouts</button>
+    </>
+  );
+
   return (
-    <div className="min-h-screen flex bg-[#FAFAFA]">
-      {/* SIDEBAR NAVIGATION CONTROLS */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between p-6">
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#FAFAFA]">
+      
+      {/* MOBILE HEADER RESPONSIVE TOP BAR */}
+      <header className="md:hidden w-full bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 bg-black flex items-center justify-center text-white font-bold rounded text-xs">B&F</div>
+          <span className="font-bold text-sm tracking-tight">GlowAffiliate</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1 text-gray-600 hover:text-black focus:outline-none">
+          {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </header>
+
+      {/* MOBILE DRAWER HUD OVERLAY */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
+          <aside className="w-64 bg-white h-full p-6 flex flex-col justify-between shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="space-y-6">
+              <div className="text-xs font-bold uppercase text-gray-400 tracking-wider">Navigation Menu</div>
+              <nav className="space-y-1"><NavLinks /></nav>
+            </div>
+            <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-red-600 font-medium text-sm w-full"><LogOut size={18} /> Log Out</button>
+          </aside>
+        </div>
+      )}
+
+      {/* DESKTOP PERMANENT SIDEBAR VIEW */}
+      <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col justify-between p-6 shrink-0 h-screen sticky top-0">
         <div>
           <div className="flex items-center gap-3 mb-8 px-2">
-            <div className="h-9 w-9 bg-black flex items-center justify-center text-white font-bold rounded-lg tracking-wider text-sm">B&F</div>
+            <div className="h-9 w-9 bg-black flex items-center justify-center text-white font-bold rounded-lg text-sm">B&F</div>
             <span className="font-bold text-lg tracking-tight">GlowAffiliate</span>
           </div>
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'dashboard' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <LayoutDashboard size={18} /> Dashboard
-            </button>
-
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Tag size={18} /> Find Products
-            </button>
-
-            {/* FIX: Swapped out standard dead anchor links for explicit view state actions */}
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'orders' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <ShoppingBag size={18} /> Orders History
-            </button>
-
-            <button
-              onClick={() => setActiveTab('payouts')}
-              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'payouts' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Wallet size={18} /> Payouts
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'settings' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <User size={18} /> Settings
-            </button>
-          </nav>
+          <nav className="space-y-1"><NavLinks /></nav>
         </div>
         <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full"><LogOut size={18} /> Log Out</button>
       </aside>
 
-      {/* MAIN VIEW NAVIGATION SCREEN RENDERER */}
-      <main className="flex-1 p-10 max-w-7xl mx-auto w-full">
-        {/* Render headers conditional to avoid duplicating with inner dashboard styles */}
+      {/* RE-ARCHITECTED FLEX CONTENT HOLDER */}
+      <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-7xl mx-auto w-full overflow-x-hidden">
         {activeTab !== 'orders' && (
-          <header className="flex justify-between items-center mb-10">
+          <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 md:mb-10">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back, {affiliate.name} 👋</h1>
-              <p className="text-sm text-gray-500 mt-1">Here is your boutique's referral performance overview today.</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Welcome back, {affiliate.name || 'Creator'} 👋</h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Here is your referral performance overview today.</p>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-sm">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Your Code:</span>
-              <span className="bg-amber-50 text-amber-800 font-mono font-bold px-2.5 py-1 rounded text-sm border border-amber-200/60">{affiliate.affiliateCode}</span>
+            <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 flex items-center justify-between sm:justify-start gap-3 shadow-sm self-stretch sm:self-auto">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Your Code:</span>
+              <span className="bg-amber-50 text-amber-800 font-mono font-bold px-2 py-0.5 rounded text-xs border border-amber-200/60">{affiliate.affiliateCode || "N/A"}</span>
             </div>
           </header>
         )}
 
-        {/* CONDITIONALLY SWAP VIEWS */}
+        {/* METRICS ROW (RESPONSIVE COLUMNS TRANSITION) */}
         {activeTab === 'dashboard' && (
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="bg-white border p-5 sm:p-6 rounded-2xl shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Pending Balance</p>
-                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.pendingBalance || 0).toFixed(2)}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Pending Balance</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900">${Number(affiliate.balance?.pendingBalance || 0).toFixed(2)}</h3>
                 </div>
-                <div className="p-3 bg-amber-50 rounded-xl text-amber-600 border border-amber-100"><Clock size={20} /></div>
+                <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600"><Clock size={18} /></div>
               </div>
-              <p className="text-xs text-amber-600 font-medium mt-4">• Held safely during product return window</p>
             </div>
 
-            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white border p-5 sm:p-6 rounded-2xl shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Withdrawable Cash</p>
-                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.withdrawableBalance || 0).toFixed(2)}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Withdrawable Cash</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900">${Number(affiliate.balance?.withdrawableBalance || 0).toFixed(2)}</h3>
                 </div>
-                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100"><DollarSign size={20} /></div>
+                <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600"><DollarSign size={18} /></div>
               </div>
-              <button className="mt-4 text-xs bg-gray-900 text-white px-3 py-1.5 font-semibold rounded-lg opacity-50 cursor-not-allowed" disabled>Request Payout</button>
             </div>
 
-            <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white border p-5 sm:p-6 rounded-2xl shadow-sm sm:col-span-2 md:col-span-1">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Total Earnings</p>
-                  <h3 className="text-3xl font-black tracking-tight text-gray-900">${Number(affiliate.balance?.totalEarned || 0).toFixed(2)}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Total Earnings</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900">${Number(affiliate.balance?.totalEarned || 0).toFixed(2)}</h3>
                 </div>
-                <div className="p-3 bg-blue-50 rounded-xl text-blue-600 border border-blue-100"><TrendingUp size={20} /></div>
+                <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600"><TrendingUp size={18} /></div>
               </div>
-              <p className="text-xs text-gray-500 font-medium mt-4">All-time career revenue generated</p>
             </div>
           </section>
         )}
@@ -365,76 +261,40 @@ export default function App() {
         {activeTab === 'products' && (
           <section>
             <div className="mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-gray-900">Affiliate Brand Marketplace</h2>
-              <p className="text-sm text-gray-500 mt-1">Select highly curated items to promote on your social feeds and tracking channels.</p>
+              <h2 className="text-lg font-bold text-gray-900">Affiliate Brand Marketplace</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Promote highly curated items on your social channels.</p>
             </div>
 
             {products.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-500">
-                <Tag size={32} className="mx-auto mb-3 text-gray-300" />
-                <p className="font-medium text-gray-700">No storefront products found</p>
-                <p className="text-xs text-gray-400 mt-1">Insert data records in MongoDB Compass to populate your hub grid.</p>
-              </div>
+              <div className="bg-white border rounded-2xl p-8 text-center text-gray-400 text-xs font-medium">No marketplace products found.</div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                 {products.map((product) => {
                   const cleanedBase = product.productUrl?.endsWith('/') ? product.productUrl : `${product.productUrl || ''}/`;
                   const previewLink = `${cleanedBase}${product._id}?ref=${affiliate.affiliateCode}`;
-
                   return (
-                    <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-black transition-all">
+                    <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between hover:border-black transition-all">
                       <div>
-                        {/* BRAND NEW: Dynamic Product Image Render Frame */}
-                        <div className="w-full h-48 bg-neutral-50 rounded-xl mb-4 overflow-hidden border border-neutral-100 flex items-center justify-center relative">
+                        <div className="w-full h-40 sm:h-44 bg-neutral-50 rounded-xl mb-3 overflow-hidden flex items-center justify-center relative border border-neutral-100">
                           {product.image || product.imageUrl ? (
-                            <img
-                              src={product.image || product.imageUrl}
-                              alt={product.name}
-                              className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300"
-                            />
+                            <img src={product.image || product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
-                            // Elegant fallback placeholder if a product profile lacks an image in MongoDB
-                            <div className="text-center p-4">
-                              <Tag size={24} className="mx-auto mb-1.5 text-neutral-300" />
-                              <span className="text-[11px] font-medium tracking-wide uppercase text-neutral-400">No Image Uploaded</span>
-                            </div>
+                            <Tag size={20} className="text-neutral-300" />
                           )}
-
-                          {/* Badge Overlays inside image window */}
-                          <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 bg-white/90 backdrop-blur-sm text-neutral-800 rounded-full shadow-sm border border-neutral-200/40">
-                            SKU: {product.sku || "N/A"}
-                          </span>
+                          <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 bg-white/90 rounded-full shadow-sm">SKU: {product.sku || "N/A"}</span>
                         </div>
-
-                        {/* Product Meta Details */}
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-semibold text-gray-900 text-lg tracking-tight leading-snug">{product.name}</h3>
-                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/60 shrink-0">
-                            Earn {product.commissionRate}%
-                          </span>
+                        <div className="flex justify-between items-start gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base line-clamp-1">{product.name}</h3>
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shrink-0">Earn {product.commissionRate}%</span>
                         </div>
-                        <p className="text-sm font-medium text-gray-500 mb-4">Retail Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
+                        <p className="text-xs font-medium text-gray-500 mb-3">Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
                       </div>
 
-                      <div className="border-t border-gray-100 pt-4 mt-2">
-                        <div className="bg-neutral-50 border border-neutral-200/60 rounded-xl p-3 flex justify-between items-center gap-3">
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <Link2 size={14} className="text-gray-400 shrink-0" />
-                            <span className="text-xs font-mono text-gray-400 truncate select-all">
-                              {previewLink}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleCopyLink(product)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white hover:bg-neutral-800'}`}
-                          >
-                            {copiedId === product._id ? (
-                              <><Check size={12} /> Copied!</>
-                            ) : (
-                              <><Copy size={12} /> Copy Link</>
-                            )}
-                          </button>
-                        </div>
+                      <div className="border-t border-gray-100 pt-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
+                        <span className="text-[11px] font-mono text-gray-400 truncate bg-neutral-50 p-2 rounded-lg border border-neutral-200/40">{previewLink}</span>
+                        <button onClick={() => handleCopyLink(product)} className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white'}`}>
+                          {copiedId === product._id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy link</>}
+                        </button>
                       </div>
                     </div>
                   );
@@ -444,17 +304,7 @@ export default function App() {
           </section>
         )}
 
-        {/* 📉 FIX RENDER INJECTION: Mount CreatorDashboard dynamically passing logged in affiliate code */}
-        {activeTab === 'orders' && (
-          <CreatorDashboard defaultRefCode={affiliate.affiliateCode} />
-        )}
-
-        {/* FALLBACK BLANK FRAMES FOR UNFINISHED VIEWS */}
-        {(activeTab === 'payouts' || activeTab === 'settings') && (
-          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-400 text-xs font-medium">
-            Management sub-module configuration coming soon.
-          </div>
-        )}
+        {activeTab === 'orders' && <CreatorDashboard defaultRefCode={affiliate.affiliateCode} />}
       </main>
     </div>
   );
