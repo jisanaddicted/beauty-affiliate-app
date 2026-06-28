@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check, Menu, X } from 'lucide-react';
-import CreatorDashboard from './CreatorDashboard'; 
-
+import CreatorDashboard from './CreatorDashboard';
+import PayoutsTab from './PayoutsTab';
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); 
-  const [activeTab, setActiveTab] = useState('dashboard'); 
+  const [authMode, setAuthMode] = useState('login');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedId, setCopiedId] = useState(null);
-  
+
   // NEW: Mobile Navigation Sidebar Drawer Toggle State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -171,7 +171,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#FAFAFA]">
-      
+
       {/* MOBILE HEADER RESPONSIVE TOP BAR */}
       <header className="md:hidden w-full bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-2">
@@ -305,6 +305,13 @@ export default function App() {
         )}
 
         {activeTab === 'orders' && <CreatorDashboard defaultRefCode={affiliate.affiliateCode} />}
+        {/* PLACE INSIDE YOUR APPS MAIN WRAPPER CONTAINER GRID SYSTEM */}
+        {activeTab === 'payouts' && (
+          <PayoutsTab
+            affiliateBalance={affiliate.balance}
+            onBalanceUpdate={(updatedBalance) => setAffiliate({ ...affiliate, balance: updatedBalance })}
+          />
+        )}
       </main>
     </div>
   );
