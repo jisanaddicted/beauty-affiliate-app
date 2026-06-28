@@ -3,7 +3,7 @@ import axios from 'axios';
 import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check } from 'lucide-react';
 
 // Import your new dashboard component cleanly
-import CreatorDashboard from './CreatorDashboard'; 
+import CreatorDashboard from './CreatorDashboard';
 
 export default function App() {
   // Authentication & View States
@@ -110,14 +110,14 @@ export default function App() {
   const handleCopyLink = (product) => {
     if (!product.productUrl) return;
 
-    const baseUrl = product.productUrl.endsWith('/') 
-      ? product.productUrl 
+    const baseUrl = product.productUrl.endsWith('/')
+      ? product.productUrl
       : `${product.productUrl}/`;
 
     const fullTrackingLink = `${baseUrl}${product._id}?ref=${affiliate.affiliateCode}`;
 
     navigator.clipboard.writeText(fullTrackingLink);
-    
+
     setCopiedId(product._id);
     setTimeout(() => {
       setCopiedId(null);
@@ -175,7 +175,7 @@ export default function App() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Full Name</label>
                     <div className="relative">
-                      <input 
+                      <input
                         type="text" required placeholder="e.g., Jisan Rahman" value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
@@ -187,7 +187,7 @@ export default function App() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Desired Affiliate Code</label>
                     <div className="relative">
-                      <input 
+                      <input
                         type="text" required placeholder="e.g., JISAN10, GLOWQUEEN" value={userCode}
                         onChange={(e) => setUserCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
                         className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50 font-mono tracking-wide"
@@ -201,7 +201,7 @@ export default function App() {
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Email Address</label>
                 <div className="relative">
-                  <input 
+                  <input
                     type="email" required placeholder="jisan@example.com" value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
@@ -215,13 +215,13 @@ export default function App() {
                   <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Password</label>
                 </div>
                 <div className="relative">
-                  <input 
+                  <input
                     type={showPassword ? "text" : "password"} required placeholder="••••••••" value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-10 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-neutral-50/50"
                   />
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                  <button 
+                  <button
                     type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-black"
                   >
@@ -230,7 +230,7 @@ export default function App() {
                 </div>
               </div>
 
-              <button 
+              <button
                 type="submit" disabled={loading}
                 className="w-full bg-neutral-950 hover:bg-black text-white py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all mt-2 disabled:opacity-50"
               >
@@ -241,7 +241,7 @@ export default function App() {
             <div className="text-center mt-6">
               <p className="text-sm text-neutral-500">
                 {authMode === 'login' ? "Don't have an account? " : "Already tracking metrics? "}
-                <button 
+                <button
                   onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setErrorMessage(''); }}
                   className="font-bold text-neutral-900 hover:underline"
                 >
@@ -268,37 +268,37 @@ export default function App() {
             <span className="font-bold text-lg tracking-tight">GlowAffiliate</span>
           </div>
           <nav className="space-y-1">
-            <button 
-              onClick={() => setActiveTab('dashboard')} 
+            <button
+              onClick={() => setActiveTab('dashboard')}
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'dashboard' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <LayoutDashboard size={18} /> Dashboard
             </button>
-            
-            <button 
-              onClick={() => setActiveTab('products')} 
+
+            <button
+              onClick={() => setActiveTab('products')}
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <Tag size={18} /> Find Products
             </button>
-            
+
             {/* FIX: Swapped out standard dead anchor links for explicit view state actions */}
-            <button 
-              onClick={() => setActiveTab('orders')} 
+            <button
+              onClick={() => setActiveTab('orders')}
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'orders' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <ShoppingBag size={18} /> Orders History
             </button>
 
-            <button 
-              onClick={() => setActiveTab('payouts')} 
+            <button
+              onClick={() => setActiveTab('payouts')}
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'payouts' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <Wallet size={18} /> Payouts
             </button>
 
-            <button 
-              onClick={() => setActiveTab('settings')} 
+            <button
+              onClick={() => setActiveTab('settings')}
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'settings' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <User size={18} /> Settings
@@ -384,13 +384,35 @@ export default function App() {
                   return (
                     <div key={product._id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-black transition-all">
                       <div>
-                        <div className="flex justify-between items-start mb-3">
-                          <span className="text-xs font-semibold px-2.5 py-1 bg-neutral-100 text-neutral-800 rounded-full">SKU: {product.sku || "N/A"}</span>
-                          <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                        {/* BRAND NEW: Dynamic Product Image Render Frame */}
+                        <div className="w-full h-48 bg-neutral-50 rounded-xl mb-4 overflow-hidden border border-neutral-100 flex items-center justify-center relative">
+                          {product.image || product.imageUrl ? (
+                            <img
+                              src={product.image || product.imageUrl}
+                              alt={product.name}
+                              className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            // Elegant fallback placeholder if a product profile lacks an image in MongoDB
+                            <div className="text-center p-4">
+                              <Tag size={24} className="mx-auto mb-1.5 text-neutral-300" />
+                              <span className="text-[11px] font-medium tracking-wide uppercase text-neutral-400">No Image Uploaded</span>
+                            </div>
+                          )}
+
+                          {/* Badge Overlays inside image window */}
+                          <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 bg-white/90 backdrop-blur-sm text-neutral-800 rounded-full shadow-sm border border-neutral-200/40">
+                            SKU: {product.sku || "N/A"}
+                          </span>
+                        </div>
+
+                        {/* Product Meta Details */}
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-semibold text-gray-900 text-lg tracking-tight leading-snug">{product.name}</h3>
+                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/60 shrink-0">
                             Earn {product.commissionRate}%
                           </span>
                         </div>
-                        <h3 className="font-semibold text-gray-900 text-lg mb-1">{product.name}</h3>
                         <p className="text-sm font-medium text-gray-500 mb-4">Retail Price: <span className="text-gray-900 font-bold">${product.price}</span></p>
                       </div>
 
@@ -402,7 +424,7 @@ export default function App() {
                               {previewLink}
                             </span>
                           </div>
-                          <button 
+                          <button
                             onClick={() => handleCopyLink(product)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all shrink-0 ${copiedId === product._id ? 'bg-emerald-600 text-white' : 'bg-black text-white hover:bg-neutral-800'}`}
                           >
