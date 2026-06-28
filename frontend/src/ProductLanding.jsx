@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Sparkles, ShoppingBag, ArrowRight, ShieldCheck, Truck, Star } from 'lucide-react';
+import { Sparkles, ShoppingBag, ArrowRight, ShieldCheck, Truck, Star, Layers } from 'lucide-react';
 
 export default function ProductLanding() {
   const [product, setProduct] = useState(null);
@@ -38,21 +38,32 @@ export default function ProductLanding() {
     e.preventDefault();
     setOrderStatus(null);
 
+    // 🚀 Your live Google Apps Script Web App URL bypassing backend DB limits
+    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
+
     try {
       const orderPayload = {
         productId: product._id,
-        customerName,
-        customerEmail,
-        shippingAddress,
-        referralCode: referralCode || null, // 👈 Passes the tracked affiliate creator code
+        productName: product.name,
+        price: product.price,
+        customerName: customerName,
+        customerEmail: customerEmail,
+        shippingAddress: shippingAddress,
+        referralCode: referralCode || null,
       };
 
-      await axios.post('http://localhost:5000/api/orders', orderPayload);
+      // Using text/plain content-type allows Google Apps Script to process 
+      // the request without running into restrictive browser CORS blockades.
+      await axios.post(GOOGLE_SHEET_URL, JSON.stringify(orderPayload), {
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+
       setOrderStatus('success');
       setCustomerName('');
       setCustomerEmail('');
       setShippingAddress('');
     } catch (err) {
+      console.error("Order Routing Error: ", err);
       setOrderStatus('error');
     }
   };
@@ -76,29 +87,62 @@ export default function ProductLanding() {
       </header>
 
       {/* CORE HERO SECTION */}
-      <main className="max-w-6xl mx-auto px-6 py-12 md:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
+      <main className="max-w-7xl mx-auto px-6 py-12 md:py-16 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
         
-        {/* LEFT COLUMN: SELLING POINTS & PRODUCT INFO */}
-        <div className="flex flex-col justify-center">
+        {/* LEFT COMPONENT COLUMN: PRODUCT PHOTO FRAME (Takes up 5/12 Columns) */}
+        <div className="lg:col-span-5 space-y-4 sticky top-24">
+          {product.image ? (
+            <div className="w-full aspect-[4/5] bg-neutral-50 rounded-3xl overflow-hidden border border-neutral-200/60 shadow-sm">
+              <img 
+                src={product.image} 
+                alt={product.name} 
+                className="w-full h-full object-cover transform hover:scale-[1.02] transition-transform duration-500" 
+              />
+            </div>
+          ) : (
+            <div className="w-full aspect-[4/5] bg-neutral-50 rounded-3xl flex flex-col items-center justify-center border border-dashed border-neutral-200 text-neutral-400">
+              <ShoppingBag size={40} className="stroke-[1.2] mb-2" />
+              <span className="text-xs font-medium">No Image Asset Loaded</span>
+            </div>
+          )}
+          
+          {/* Dynamically Map Category & SKU Below Image */}
+          <div className="flex items-center justify-between px-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
+            <span>Collection: {product.category || 'Premium Skin'}</span>
+            <span>SKU: {product.sku || 'N/A'}</span>
+          </div>
+        </div>
+
+        {/* CENTER COLUMN: METADATA & CONTENT (Takes up 4/12 Columns) */}
+        <div className="lg:col-span-4 flex flex-col justify-center lg:pt-2">
           <div className="flex items-center gap-1.5 text-amber-500 text-sm mb-4">
-            {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
-            <span className="text-neutral-500 font-medium ml-1 text-xs">(4.9/5 verified reviews)</span>
+            {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="currentColor" />)}
+            <span className="text-neutral-500 font-semibold ml-1 text-xs">4.9 / 5.0</span>
           </div>
           
-          <h1 className="text-4xl sm:text-5xl font-serif tracking-tight leading-tight mb-4 text-neutral-950">
+          <h1 className="text-3xl sm:text-4xl font-serif tracking-tight leading-tight mb-3 text-neutral-950">
             {product.name}
           </h1>
           
           <div className="flex items-baseline gap-3 mb-6">
             <span className="text-3xl font-black tracking-tight text-neutral-950">${product.price}</span>
-            <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold">Free Worldwide Shipping Included</span>
+            <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-emerald-100">Free Delivery</span>
           </div>
 
-          <p className="text-neutral-600 text-sm leading-relaxed mb-8">
-            Experience our premium, highly requested skincare formula. Professionally balanced, non-comedogenic, and engineered to deliver glowing, dynamic results in under 7 days. Secured exclusively through affiliate community allocations.
+          <p className="text-neutral-600 text-sm leading-relaxed mb-6">
+            {product.description || "Experience our premium, highly requested skincare formula. Professionally balanced, non-comedogenic, and engineered to deliver glowing, dynamic results in under 7 days."}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-neutral-100 pt-6">
+          {/* Dynamically Render Highlight Badges from Database if available */}
+          {product.highlights && product.highlights.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-8">
+              {product.highlights.map((badge, idx) => (
+                <span key={idx} className="text-[10px] font-bold bg-neutral-100/80 text-neutral-700 px-2.5 py-1 rounded-md border border-neutral-200/40">{badge}</span>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-4 border-t border-neutral-100 pt-6">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-neutral-50 rounded-lg text-neutral-800"><Truck size={16} /></div>
               <div>
@@ -116,56 +160,56 @@ export default function ProductLanding() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: INTERACTIVE ORDER CONVERSION CONSOLE */}
-        <div className="bg-neutral-50 border border-neutral-200/60 p-8 sm:p-10 rounded-3xl relative">
-          <h3 className="text-xl font-bold tracking-tight mb-1 text-neutral-950">Complete Your Order</h3>
-          <p className="text-xs text-neutral-500 mb-6">Fill out your shipping information down below to secure your items immediately.</p>
+        {/* RIGHT COLUMN: INTERACTIVE ORDER CONVERSION CONSOLE (Takes up 3/12 Columns) */}
+        <div className="lg:col-span-3 bg-neutral-50 border border-neutral-200/60 p-6 sm:p-8 rounded-3xl lg:sticky lg:top-24">
+          <h3 className="text-lg font-bold tracking-tight mb-1 text-neutral-950">Secure Checkout</h3>
+          <p className="text-xs text-neutral-500 mb-6">Fill out your details to place your tracking order.</p>
 
           {orderStatus === 'success' && (
-            <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-5 rounded-2xl text-sm font-medium mb-6">
-              🎉 Order received perfectly! We are handling validation loops and packaging preparation right now.
+            <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-xs font-medium mb-5">
+              🎉 Order received perfectly! Packing preparation is underway.
             </div>
           )}
 
           {orderStatus === 'error' && (
-            <div className="bg-red-50 text-red-800 border border-red-200 p-5 rounded-2xl text-sm font-medium mb-6">
-              ⚠️ Order transaction processing failed. Please check your data paths.
+            <div className="bg-red-50 text-red-800 border border-red-200 p-4 rounded-xl text-xs font-medium mb-5">
+              ⚠️ Transaction failed. Please check connection path settings.
             </div>
           )}
 
           <form onSubmit={handlePlaceOrder} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Your Full Name</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Your Full Name</label>
               <input 
                 type="text" required placeholder="e.g., Jisan Rahman" value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-white"
+                className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Email Address</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address</label>
               <input 
                 type="email" required placeholder="yourname@domain.com" value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-white"
+                className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Shipping Destination Address</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Shipping Address</label>
               <textarea 
-                rows="3" required placeholder="Street Address, City, Zip Code" value={shippingAddress}
+                rows="3" required placeholder="Street, City, Zip Code" value={shippingAddress}
                 onChange={(e) => setShippingAddress(e.target.value)}
-                className="w-full px-4 py-3 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black bg-white resize-none"
+                className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white resize-none"
               />
             </div>
 
             <button 
               type="submit" 
-              className="w-full bg-neutral-950 hover:bg-black text-white py-4 rounded-xl text-sm font-bold tracking-wide transition-all shadow-md flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-neutral-950 hover:bg-black text-white py-3 rounded-xl text-xs font-bold tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5 mt-2"
             >
-              <ShoppingBag size={16} /> Place Order - Total: ${product.price} <ArrowRight size={14} />
+              <ShoppingBag size={14} /> Buy Now - ${product ? product.price : '...'} <ArrowRight size={12} />
             </button>
           </form>
         </div>

@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LayoutDashboard, ShoppingBag, Wallet, User, DollarSign, Clock, TrendingUp, LogOut, Mail, Lock, Eye, EyeOff, Sparkles, Tag, Link2, Copy, Check } from 'lucide-react';
 
+// Import your new dashboard component cleanly
+import CreatorDashboard from './CreatorDashboard'; 
+
 export default function App() {
   // Authentication & View States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'products'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'products', or 'orders'
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -89,7 +92,7 @@ export default function App() {
       console.error("Full Backend Error Details:", err.response?.data);
       setErrorMessage(err.response?.data?.message || 'Authentication failed. Try again.');
     } finally {
-      loading && setLoading(false);
+      if (loading) setLoading(false);
     }
   };
 
@@ -107,18 +110,14 @@ export default function App() {
   const handleCopyLink = (product) => {
     if (!product.productUrl) return;
 
-    // 1. Cleanly check trailing slashed limits
     const baseUrl = product.productUrl.endsWith('/') 
       ? product.productUrl 
       : `${product.productUrl}/`;
 
-    // 2. Glue variables together natively using the verified profile state tracker
     const fullTrackingLink = `${baseUrl}${product._id}?ref=${affiliate.affiliateCode}`;
 
-    // 3. Command OS system clip write profile
     navigator.clipboard.writeText(fullTrackingLink);
     
-    // 4. Update UI visual status state indicators
     setCopiedId(product._id);
     setTimeout(() => {
       setCopiedId(null);
@@ -131,7 +130,6 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-white">
-        
         {/* LEFT COLUMN: VISUAL BRANDING PANEL */}
         <div className="hidden lg:flex flex-col justify-between p-12 bg-neutral-950 text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.15),transparent_50%)]" />
@@ -156,7 +154,6 @@ export default function App() {
         {/* RIGHT COLUMN: INTERACTIVE FORM LAYOUT */}
         <div className="flex flex-col justify-center p-8 sm:p-16 lg:p-24 bg-white">
           <div className="w-full max-w-md mx-auto">
-            
             <div className="mb-8">
               <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
                 {authMode === 'login' ? 'Sign in to your dashboard' : 'Create your creator account'}
@@ -173,7 +170,6 @@ export default function App() {
             )}
 
             <form onSubmit={handleAuthSubmit} className="space-y-5">
-              
               {authMode === 'signup' && (
                 <>
                   <div>
@@ -240,7 +236,6 @@ export default function App() {
               >
                 {loading ? 'Processing System Network...' : authMode === 'login' ? 'Access Dashboard' : 'Generate Creator Code'}
               </button>
-
             </form>
 
             <div className="text-center mt-6">
@@ -254,20 +249,17 @@ export default function App() {
                 </button>
               </p>
             </div>
-
           </div>
         </div>
-
       </div>
     );
   }
 
   /* ==========================================
-      RENDER BLOCK 2: LIVE METRICS DASHBOARD
+      RENDER BLOCK 2: LIVE METRICS PORTAL
      ========================================== */
   return (
     <div className="min-h-screen flex bg-[#FAFAFA]">
-      
       {/* SIDEBAR NAVIGATION CONTROLS */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between p-6">
         <div>
@@ -282,35 +274,58 @@ export default function App() {
             >
               <LayoutDashboard size={18} /> Dashboard
             </button>
+            
             <button 
               onClick={() => setActiveTab('products')} 
               className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <Tag size={18} /> Find Products
             </button>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><ShoppingBag size={18} /> Orders History</a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><Wallet size={18} /> Payouts</a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 font-medium rounded-lg text-sm"><User size={18} /> Settings</a>
+            
+            {/* FIX: Swapped out standard dead anchor links for explicit view state actions */}
+            <button 
+              onClick={() => setActiveTab('orders')} 
+              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'orders' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <ShoppingBag size={18} /> Orders History
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('payouts')} 
+              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'payouts' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Wallet size={18} /> Payouts
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('settings')} 
+              className={`flex items-center gap-3 px-3 py-2.5 font-medium rounded-lg text-sm w-full text-left transition-all ${activeTab === 'settings' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <User size={18} /> Settings
+            </button>
           </nav>
         </div>
         <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full"><LogOut size={18} /> Log Out</button>
       </aside>
 
-      {/* MAIN VIEW COMPONENT GRID */}
+      {/* MAIN VIEW NAVIGATION SCREEN RENDERER */}
       <main className="flex-1 p-10 max-w-7xl mx-auto w-full">
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back, {affiliate.name} 👋</h1>
-            <p className="text-sm text-gray-500 mt-1">Here is your boutique's referral performance overview today.</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-sm">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Your Code:</span>
-            <span className="bg-amber-50 text-amber-800 font-mono font-bold px-2.5 py-1 rounded text-sm border border-amber-200/60">{affiliate.affiliateCode}</span>
-          </div>
-        </header>
+        {/* Render headers conditional to avoid duplicating with inner dashboard styles */}
+        {activeTab !== 'orders' && (
+          <header className="flex justify-between items-center mb-10">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back, {affiliate.name} 👋</h1>
+              <p className="text-sm text-gray-500 mt-1">Here is your boutique's referral performance overview today.</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-sm">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Your Code:</span>
+              <span className="bg-amber-50 text-amber-800 font-mono font-bold px-2.5 py-1 rounded text-sm border border-amber-200/60">{affiliate.affiliateCode}</span>
+            </div>
+          </header>
+        )}
 
-        {activeTab === 'dashboard' ? (
-          /* DASHBOARD ANALYTICS TRACKING OVERVIEW */
+        {/* CONDITIONALLY SWAP VIEWS */}
+        {activeTab === 'dashboard' && (
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
               <div className="flex justify-between items-start">
@@ -345,8 +360,9 @@ export default function App() {
               <p className="text-xs text-gray-500 font-medium mt-4">All-time career revenue generated</p>
             </div>
           </section>
-        ) : (
-          /* PRODUCT CAMPAIGN MARKETPLACE VIEW */
+        )}
+
+        {activeTab === 'products' && (
           <section>
             <div className="mb-6">
               <h2 className="text-xl font-bold tracking-tight text-gray-900">Affiliate Brand Marketplace</h2>
@@ -404,6 +420,18 @@ export default function App() {
               </div>
             )}
           </section>
+        )}
+
+        {/* 📉 FIX RENDER INJECTION: Mount CreatorDashboard dynamically passing logged in affiliate code */}
+        {activeTab === 'orders' && (
+          <CreatorDashboard defaultRefCode={affiliate.affiliateCode} />
+        )}
+
+        {/* FALLBACK BLANK FRAMES FOR UNFINISHED VIEWS */}
+        {(activeTab === 'payouts' || activeTab === 'settings') && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-400 text-xs font-medium">
+            Management sub-module configuration coming soon.
+          </div>
         )}
       </main>
     </div>
