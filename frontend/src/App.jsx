@@ -38,12 +38,53 @@ export default function App() {
 
   const fetchDashboardData = async (token) => {
     try {
+      // 1. Fetch the base affiliate profile from your Node.js backend
       const response = await axios.get('http://localhost:5000/api/affiliates/dashboard', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAffiliate(response.data);
+
+      const affiliateData = response.data;
+      const creatorCode = affiliateData.affiliateCode;
+
+      if (creatorCode) {
+        try {
+          // 2. Fetch live sheet records from your Apps Script URL
+          const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
+          const sheetResponse = await axios.get(`${GOOGLE_SHEET_URL}?ref=${creatorCode.trim()}`);
+
+          if (sheetResponse.data.result === 'success') {
+            const sheetOrders = sheetResponse.data.data;
+
+            // 3. Calculate real-time revenues based on delivery status tags
+            const pendingRevenue = sheetOrders
+              .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
+              .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+
+            const approvedRevenue = sheetOrders
+              .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
+              .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+
+            // 4. Calculate 10% commission cuts
+            const livePendingCommission = pendingRevenue * 0.10;
+            const liveApprovedCommission = approvedRevenue * 0.10;
+
+            // 5. Update data mapping: totalEarned now ONLY counts delivered orders
+            affiliateData.balance = {
+              ...affiliateData.balance,
+              pendingBalance: livePendingCommission,
+              withdrawableBalance: liveApprovedCommission - (affiliateData.balance.totalWithdrawn || 0),
+              totalEarned: liveApprovedCommission // 💎 Only completed deliveries show up here now
+            };
+          }
+        } catch (sheetErr) {
+          console.error("Failed to sync real-time sheet metrics to main dashboard cards:", sheetErr);
+        }
+      }
+
+      setAffiliate(affiliateData);
       setIsLoggedIn(true);
     } catch (err) {
+      console.error(err);
       localStorage.removeItem('token');
       setIsLoggedIn(false);
     }
