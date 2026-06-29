@@ -23,7 +23,7 @@ export default function ProductLanding() {
   useEffect(() => {
     const fetchProductDetails = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/products/${productId}`);
+        const response = await axios.get(`https://beauty-affiliate-app.onrender.com/api/products/${productId}`);
         setProduct(response.data);
       } catch (err) {
         setError('Product profile not found or currently unavailable.');

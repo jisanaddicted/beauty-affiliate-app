@@ -39,7 +39,7 @@ export default function App() {
   const fetchDashboardData = async (token) => {
     try {
       // 1. Fetch the base affiliate profile from your Node.js backend
-      const response = await axios.get('http://localhost:5000/api/affiliates/dashboard', {
+      const response = await axios.get('https://beauty-affiliate-app.onrender.com/api/affiliates/dashboard', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -92,7 +92,7 @@ export default function App() {
 
   const fetchProducts = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/products');
+      const response = await axios.get('https://beauty-affiliate-app.onrender.com/api/products');
       setProducts(response.data);
     } catch (err) {
       setProducts([]);
@@ -105,12 +105,12 @@ export default function App() {
     setErrorMessage('');
     try {
       if (authMode === 'signup') {
-        await axios.post('http://localhost:5000/api/auth/register', { name, email, password, affiliateCode: userCode });
-        const loginResponse = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+        await axios.post('https://beauty-affiliate-app.onrender.com/api/auth/register', { name, email, password, affiliateCode: userCode });
+        const loginResponse = await axios.post('https://beauty-affiliate-app.onrender.com/api/auth/login', { email, password });
         localStorage.setItem('token', loginResponse.data.token);
         await fetchDashboardData(loginResponse.data.token);
       } else {
-        const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+        const response = await axios.post('https://beauty-affiliate-app.onrender.com/api/auth/login', { email, password });
         localStorage.setItem('token', response.data.token);
         await fetchDashboardData(response.data.token);
       }

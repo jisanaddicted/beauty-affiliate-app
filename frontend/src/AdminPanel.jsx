@@ -57,7 +57,7 @@ export default function AdminPanel() {
     e.preventDefault();
     setErrorMsg('');
     try {
-      const response = await axios.post('http://localhost:5000/api/admin/login', { email, password });
+      const response = await axios.post('https://beauty-affiliate-app.onrender.com/api/admin/login', { email, password });
       if (response.data) {
         setIsAdminLoggedIn(true);
       }
@@ -71,7 +71,7 @@ export default function AdminPanel() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      await axios.post('http://localhost:5000/api/admin/products', formData);
+      await axios.post('https://beauty-affiliate-app.onrender.com/api/admin/products', formData);
       setSuccessMsg('✨ Product pushed to MongoDB live marketplace successfully!');
       setFormData({
         name: '', price: '', commissionRate: '', sku: '',
@@ -222,7 +222,7 @@ export default function AdminPanel() {
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Target Landing Page Base URL</label>
-                <input type="text" required placeholder="http://localhost:5173/product/LEAVE_BLANK_OR_ADD_BASE" value={formData.productUrl} onChange={e => setFormData({...formData, productUrl: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
+                <input type="text" required placeholder="https://beauty-affiliate-app.onrender.com/product/LEAVE_BLANK_OR_ADD_BASE" value={formData.productUrl} onChange={e => setFormData({...formData, productUrl: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
               </div>
 
               <div className="md:col-span-2">

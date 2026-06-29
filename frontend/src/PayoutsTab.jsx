@@ -53,7 +53,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/payouts/history', {
+      const response = await axios.get('https://beauty-affiliate-app.onrender.com/api/payouts/history', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setHistory(response.data);
@@ -79,7 +79,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/payouts/withdraw', {
+      const response = await axios.post('https://beauty-affiliate-app.onrender.com/api/payouts/withdraw', {
         amount, method: selectedMethod, accountType, accountNumber
       }, {
         headers: { Authorization: `Bearer ${token}` }
