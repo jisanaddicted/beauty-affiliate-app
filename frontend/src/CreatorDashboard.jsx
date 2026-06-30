@@ -129,7 +129,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
               <div className="p-2.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg"><Clock size={16} /></div>
               <div>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-amber-600 block">Pending Payout (On Way)</span>
-                <span className="text-lg font-black text-amber-600 block">৳{pendingCommission.toFixed(2)}</span>
+                <span className="text-lg font-black text-amber-600 block">${pendingCommission.toFixed(2)}</span>
               </div>
             </div>
 
@@ -137,7 +137,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
               <div className="p-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg"><CheckCircle2 size={16} /></div>
               <div>
                 <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-700 block">Approved Payout (Done)</span>
-                <span className="text-lg font-black text-emerald-700 block">৳{approvedCommission.toFixed(2)}</span>
+                <span className="text-lg font-black text-emerald-700 block">${approvedCommission.toFixed(2)}</span>
               </div>
             </div>
           </div>

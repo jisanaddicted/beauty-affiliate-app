@@ -187,14 +187,14 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
             <div>
               <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Amount to Transfer (BDT)</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">৳</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">$</span>
                 <input 
                   type="number" min="100" placeholder="Min. 100 BDT" required value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full pl-8 pr-4 py-2.5 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none focus:border-black"
                 />
               </div>
-              <span className="text-[10px] text-neutral-400 block mt-1.5 font-medium"> Available Wallet Reserve Pool: <b>৳{Number(affiliateBalance?.withdrawableBalance || 0).toFixed(2)} BDT</b></span>
+              <span className="text-[10px] text-neutral-400 block mt-1.5 font-medium"> Available Wallet Reserve Pool: <b>${Number(affiliateBalance?.withdrawableBalance || 0).toFixed(2)} BDT</b></span>
             </div>
 
             <button 
@@ -233,7 +233,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                 <div key={log._id} className="p-4 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-neutral-900">{log.method} ({log.accountType})</span>
-                    <span className="font-black text-neutral-950">৳{log.amount.toFixed(2)}</span>
+                    <span className="font-black text-neutral-950">${log.amount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span>{log.accountNumber}</span>
@@ -266,7 +266,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                           {log.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-black text-neutral-950">৳{log.amount.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-black text-neutral-950">${log.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
