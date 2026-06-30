@@ -189,7 +189,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">$</span>
                 <input 
-                  type="number" min="100" placeholder="Min. 100 BDT" required value={amount}
+                  type="number" min="10" placeholder="Minimum 10 usd" required value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full pl-8 pr-4 py-2.5 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none focus:border-black"
                 />

@@ -91,12 +91,16 @@ export default function AdminPanel() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      // Packaged cleanly to bypass strict preflight timeouts
-      const response = await axios.post(GOOGLE_SHEET_URL, {
+      const payload = {
         action: "updateStatus",
         customerEmail: order.customerEmail,
         productId: order.productId,
         status: "Delivered"
+      };
+
+      // 🚀 Stringifying payload and sending as text/plain bypasses restrictive preflight blockades
+      const response = await axios.post(GOOGLE_SHEET_URL, JSON.stringify(payload), {
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       });
 
       if (response.data.result === 'success') {
@@ -108,8 +112,8 @@ export default function AdminPanel() {
         setErrorMsg(response.data.message || "Could not update sheet cell tracking parameters.");
       }
     } catch (err) {
-      console.error(err);
-      setErrorMsg("Network transmission fallback timeout error.");
+      console.error("Transmission Error:", err);
+      setErrorMsg("Network transmission fallback timeout error or CORS restriction.");
     } finally {
       setUpdatingId(null);
     }
