@@ -9,7 +9,7 @@ const WithdrawalSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
-    min: [100, 'Minimum withdrawal amount is 100 BDT']
+    min: [10, 'Minimum withdrawal amount is $10'] // 🛡️ Updated validation threshold down to 10
   },
   method: {
     type: String,
