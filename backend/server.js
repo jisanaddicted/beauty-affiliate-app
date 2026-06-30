@@ -7,7 +7,7 @@ import affiliateRoutes from './routes/affiliateRoutes.js';
 import orderRoutes from './routes/orderRoutes.js'; 
 import productRoutes from './routes/productRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-import payoutRoutes from './routes/payout.js'; // 📥 Imported the payout route module
+import payoutRoutes from './routes/payouts.js'; // 📥 Imported the payout route module
 
 dotenv.config();
 
