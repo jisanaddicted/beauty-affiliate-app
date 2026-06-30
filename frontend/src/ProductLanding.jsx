@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Sparkles, ShoppingBag, ArrowRight, ShieldCheck, Truck, Star, Layers } from 'lucide-react';
+import { Sparkles, ShoppingBag, ArrowRight, ShieldCheck, Truck, Star } from 'lucide-react';
 
 export default function ProductLanding() {
   const [product, setProduct] = useState(null);
@@ -38,7 +38,7 @@ export default function ProductLanding() {
     e.preventDefault();
     setOrderStatus(null);
 
-    // 🚀 Your live Google Apps Script Web App URL bypassing backend DB limits
+    // 🚀 Live Google Apps Script Web App URL
     const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
 
     try {
@@ -52,8 +52,7 @@ export default function ProductLanding() {
         referralCode: referralCode || null,
       };
 
-      // Using text/plain content-type allows Google Apps Script to process 
-      // the request without running into restrictive browser CORS blockades.
+      // text/plain maps smoothly across basic Google macros without preflight CORS constraints
       await axios.post(GOOGLE_SHEET_URL, JSON.stringify(orderPayload), {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       });
@@ -68,29 +67,29 @@ export default function ProductLanding() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-medium bg-neutral-50 text-neutral-500">Loading premium landing page...</div>;
-  if (error || !product) return <div className="min-h-screen flex items-center justify-center font-medium bg-neutral-50 text-red-600">{error || 'Invalid Link Product Profile.'}</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-medium bg-neutral-50 text-neutral-500 text-sm">Loading premium landing page...</div>;
+  if (error || !product) return <div className="min-h-screen flex items-center justify-center font-medium bg-neutral-50 text-red-600 text-sm">{error || 'Invalid Link Product Profile.'}</div>;
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 selection:bg-neutral-900 selection:text-white">
       {/* HEADER HUD */}
-      <header className="border-b border-neutral-100 py-4 px-6 sm:px-12 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md z-50">
+      <header className="border-b border-neutral-100 py-4 px-4 sm:px-6 md:px-12 flex flex-col sm:flex-row gap-3 justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-2">
           <div className="h-6 w-6 bg-black rounded flex items-center justify-center text-white font-bold text-xs">B</div>
           <span className="font-bold tracking-tight text-sm uppercase">Glow Boutique Studio</span>
         </div>
         {referralCode && (
-          <span className="text-[11px] font-bold uppercase tracking-widest text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/50">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/50">
             ✨ Exclusive Creator Deal Unlocked
           </span>
         )}
       </header>
 
-      {/* CORE HERO SECTION */}
-      <main className="max-w-7xl mx-auto px-6 py-12 md:py-16 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+      {/* CORE HERO MAIN LAYOUT GRID */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-16 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-start">
         
-        {/* LEFT COMPONENT COLUMN: PRODUCT PHOTO FRAME (Takes up 5/12 Columns) */}
-        <div className="lg:col-span-5 space-y-4 sticky top-24">
+        {/* LEFT COMPONENT COLUMN: PRODUCT PHOTO FRAME (Desktop sticky / Mobile natural flow) */}
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
           {product.image ? (
             <div className="w-full aspect-[4/5] bg-neutral-50 rounded-3xl overflow-hidden border border-neutral-200/60 shadow-sm">
               <img 
@@ -106,26 +105,26 @@ export default function ProductLanding() {
             </div>
           )}
           
-          {/* Dynamically Map Category & SKU Below Image */}
-          <div className="flex items-center justify-between px-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
+          {/* Metadata details mapping bar */}
+          <div className="flex items-center justify-between px-2 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
             <span>Collection: {product.category || 'Premium Skin'}</span>
             <span>SKU: {product.sku || 'N/A'}</span>
           </div>
         </div>
 
-        {/* CENTER COLUMN: METADATA & CONTENT (Takes up 4/12 Columns) */}
+        {/* CENTER COLUMN: METADATA & MARKET COPY CONTENT */}
         <div className="lg:col-span-4 flex flex-col justify-center lg:pt-2">
-          <div className="flex items-center gap-1.5 text-amber-500 text-sm mb-4">
-            {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="currentColor" />)}
+          <div className="flex items-center gap-1.5 text-amber-500 text-sm mb-3">
+            {[...Array(5)].map((_, i) => <Star key={i} size={14} fill="currentColor" className="stroke-amber-500" />)}
             <span className="text-neutral-500 font-semibold ml-1 text-xs">4.9 / 5.0</span>
           </div>
           
-          <h1 className="text-3xl sm:text-4xl font-serif tracking-tight leading-tight mb-3 text-neutral-950">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif tracking-tight leading-tight mb-3 text-neutral-950">
             {product.name}
           </h1>
           
-          <div className="flex items-baseline gap-3 mb-6">
-            <span className="text-3xl font-black tracking-tight text-neutral-950">${product.price}</span>
+          <div className="flex items-baseline gap-3 mb-5">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-950">${product.price}</span>
             <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-emerald-100">Free Delivery</span>
           </div>
 
@@ -133,11 +132,13 @@ export default function ProductLanding() {
             {product.description || "Experience our premium, highly requested skincare formula. Professionally balanced, non-comedogenic, and engineered to deliver glowing, dynamic results in under 7 days."}
           </p>
 
-          {/* Dynamically Render Highlight Badges from Database if available */}
-          {product.highlights && product.highlights.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-8">
-              {product.highlights.map((badge, idx) => (
-                <span key={idx} className="text-[10px] font-bold bg-neutral-100/80 text-neutral-700 px-2.5 py-1 rounded-md border border-neutral-200/40">{badge}</span>
+          {/* Dynamically Render Highlight Badges array from DB backend schema array values */}
+          {product.highlights && (
+            <div className="flex flex-wrap gap-1.5 mb-6">
+              {(Array.isArray(product.highlights) ? product.highlights : product.highlights.split(',')).map((badge, idx) => (
+                <span key={idx} className="text-[10px] font-bold bg-neutral-100/80 text-neutral-700 px-2.5 py-1 rounded-md border border-neutral-200/40">
+                  {badge.trim()}
+                </span>
               ))}
             </div>
           )}
@@ -160,8 +161,8 @@ export default function ProductLanding() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: INTERACTIVE ORDER CONVERSION CONSOLE (Takes up 3/12 Columns) */}
-        <div className="lg:col-span-3 bg-neutral-50 border border-neutral-200/60 p-6 sm:p-8 rounded-3xl lg:sticky lg:top-24">
+        {/* RIGHT COLUMN: INTERACTIVE ORDER CONVERSION CONSOLE */}
+        <div className="lg:col-span-3 w-full bg-neutral-50 border border-neutral-200/60 p-5 sm:p-8 rounded-3xl lg:sticky lg:top-24 mt-4 lg:mt-0">
           <h3 className="text-lg font-bold tracking-tight mb-1 text-neutral-950">Secure Checkout</h3>
           <p className="text-xs text-neutral-500 mb-6">Fill out your details to place your tracking order.</p>
 
@@ -190,7 +191,7 @@ export default function ProductLanding() {
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address</label>
               <input 
-                type="email" required placeholder="yourname@domain.com" value={customerEmail}
+                type="type" required placeholder="yourname@domain.com" value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white"
               />
