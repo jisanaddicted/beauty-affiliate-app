@@ -71,8 +71,14 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
   const handleWithdrawSubmit = async (e) => {
     e.preventDefault();
     setMessage({ type: '', text: '' });
+    const numericAmount = parseFloat(amount);
 
-    if (parseFloat(amount) > affiliateBalance.withdrawableBalance) {
+    // Frontend Route Layer Guard Validation
+    if (isNaN(numericAmount) || numericAmount < 10) {
+      return setMessage({ type: 'error', text: 'The minimum withdrawal request amount limit is 10.' });
+    }
+
+    if (numericAmount > affiliateBalance?.balance?.withdrawableBalance) {
       return setMessage({ type: 'error', text: 'Requested amount exceeds your withdrawable balance.' });
     }
 
@@ -80,7 +86,10 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post('https://beauty-affiliate-app.onrender.com/api/payouts/withdraw', {
-        amount, method: selectedMethod, accountType, accountNumber
+        amount: numericAmount, 
+        method: selectedMethod, 
+        accountType, 
+        accountNumber
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -185,16 +194,17 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
 
             {/* BALANCE CONFIGURATION BOX */}
             <div>
-              <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Amount to Transfer (BDT)</label>
+              <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Amount to Transfer</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">$</span>
                 <input 
-                  type="number" min="10" placeholder="Minimum 10 usd" required value={amount}
+                  type="number" min="10" step="any" placeholder="Minimum amount 10" required value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2.5 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none focus:border-black"
+                  className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none focus:border-black"
                 />
               </div>
-              <span className="text-[10px] text-neutral-400 block mt-1.5 font-medium"> Available Wallet Reserve Pool: <b>${Number(affiliateBalance?.withdrawableBalance || 0).toFixed(2)} BDT</b></span>
+              <span className="text-[10px] text-neutral-400 block mt-1.5 font-medium"> 
+                Available Wallet Reserve Pool: <b>{Number(affiliateBalance?.balance?.withdrawableBalance || 0).toFixed(2)}</b>
+              </span>
             </div>
 
             <button 
@@ -210,7 +220,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 sm:p-6 text-white space-y-4">
           <div className="flex items-center gap-2 text-amber-400"><ShieldCheck size={18} /> <h4 className="text-xs font-bold uppercase tracking-wider">Payout Security Rules</h4></div>
           <ul className="space-y-3 text-[11px] text-neutral-400 leading-relaxed list-disc list-inside pl-0.5">
-            <li>Minimum payout limit threshold is <span className="text-white font-bold">100.00 BDT</span> per execution loop.</li>
+            <li>Minimum payout limit threshold is <span className="text-white font-bold">10</span> per execution loop.</li>
             <li>Processing timelines for manual dashboard batch validations take up to <span className="text-white font-bold">24-48 business hours</span>.</li>
             <li>Please double check cashout destination routing configurations. Outbound funds matching typo numbers cannot be recalled.</li>
           </ul>
@@ -233,7 +243,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                 <div key={log._id} className="p-4 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-neutral-900">{log.method} ({log.accountType})</span>
-                    <span className="font-black text-neutral-950">${log.amount.toFixed(2)}</span>
+                    <span className="font-black text-neutral-950">{log.amount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span>{log.accountNumber}</span>
@@ -262,11 +272,9 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                       <td className="px-6 py-4 font-bold text-neutral-900">{log.method} <span className="text-[10px] font-normal text-neutral-400">({log.accountType})</span></td>
                       <td className="px-6 py-4 font-mono text-neutral-600">{log.accountNumber}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${log.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : log.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
-                          {log.status}
-                        </span>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${log.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : log.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>{log.status}</span>
                       </td>
-                      <td className="px-6 py-4 font-black text-neutral-950">${log.amount.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-black text-neutral-950">{log.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
