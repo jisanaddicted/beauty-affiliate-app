@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const authMiddleware = require('../middleware/auth'); // Your JWT check middleware
 const Affiliate = require('../models/Affiliate');
 const Withdrawal = require('../models/Withdrawal');
@@ -10,9 +11,9 @@ router.post('/withdraw', authMiddleware, async (req, res) => {
     const { amount, method, accountType, accountNumber } = req.body;
     const numericAmount = parseFloat(amount);
 
-    // Validations
-    if (!numericAmount || numericAmount < 100) {
-      return res.status(400).json({ message: 'Minimum withdrawal is 100 BDT.' });
+    // 🛡️ Enforced minimum limit threshold to match frontend requirements ($10)
+    if (!numericAmount || numericAmount < 10) {
+      return res.status(400).json({ message: 'Minimum withdrawal is $10.' });
     }
 
     const affiliate = await Affiliate.findById(req.user.id);
@@ -28,7 +29,7 @@ router.post('/withdraw', authMiddleware, async (req, res) => {
     affiliate.balance.pendingBalance += numericAmount;
     await affiliate.save();
 
-    // Create log entry
+    // Create log entry inside MongoDB database instance
     const withdrawal = new Withdrawal({
       affiliateId: req.user.id,
       amount: numericAmount,
@@ -37,6 +38,29 @@ router.post('/withdraw', authMiddleware, async (req, res) => {
       accountNumber
     });
     await withdrawal.save();
+
+    // 🚀 Google Sheets Web App Synchronization Webhook
+    // Replace this string with your live Apps Script Web App Deployment link
+    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
+
+    try {
+      const sheetPayload = {
+        action: "createPayout",
+        email: affiliate.email,
+        method: method,
+        accountType: accountType,
+        accountNumber: accountNumber,
+        amount: numericAmount
+      };
+
+      // text/plain Content-Type handles server-to-macro payload writing efficiently
+      await axios.post(GOOGLE_SHEET_URL, JSON.stringify(sheetPayload), {
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+    } catch (sheetErr) {
+      // Caught errors logged gracefully so it doesn't interrupt or revert database saves
+      console.error("Google Sheets Sync Fallback Warning: ", sheetErr.message);
+    }
 
     res.status(201).json({ 
       message: 'Withdrawal request submitted successfully!',
