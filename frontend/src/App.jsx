@@ -68,12 +68,12 @@ export default function App() {
             const livePendingCommission = pendingRevenue * 0.10;
             const liveApprovedCommission = approvedRevenue * 0.10;
 
-            // 5. Update data mapping: totalEarned now ONLY counts delivered orders
+            // 5. Update data mapping: preserve backend's withdrawableBalance, only update pending and total
             affiliateData.balance = {
               ...affiliateData.balance,
               pendingBalance: livePendingCommission,
-              withdrawableBalance: liveApprovedCommission - (affiliateData.balance.totalWithdrawn || 0),
               totalEarned: liveApprovedCommission // 💎 Only completed deliveries show up here now
+              // withdrawableBalance is managed by backend - DO NOT override it here
             };
           }
         } catch (sheetErr) {
