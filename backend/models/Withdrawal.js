@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose'; // 💡 Change from: const mongoose = require('mongoose');
 
 const WithdrawalSchema = new mongoose.Schema({
   affiliateId: {
@@ -9,7 +9,7 @@ const WithdrawalSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
-    min: [10, 'Minimum withdrawal amount is $10'] // 🛡️ Updated validation threshold down to 10
+    min: [10, 'Minimum withdrawal amount is $10']
   },
   method: {
     type: String,
@@ -37,4 +37,5 @@ const WithdrawalSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Withdrawal', WithdrawalSchema);
+// 🚀 CRITICAL FIX: Change from module.exports to export default
+export default mongoose.model('Withdrawal', WithdrawalSchema);
