@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Shield, PlusCircle, LogOut, Package, 
-  Truck, CheckCircle2, RefreshCw, Search, ShoppingBag, Menu, X 
+  Truck, CheckCircle2, RefreshCw, Search, ShoppingBag, Menu, X,
+  DollarSign, User, Phone, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -12,7 +13,7 @@ export default function AdminPanel() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   
-  // Tab Controller Engine ('products' vs 'orders')
+  // Tab Controller Engine ('products' vs 'orders' vs 'withdrawals')
   const [activeTab, setActiveTab] = useState('products');
 
   // Mobile Drawer Toggle State
@@ -25,7 +26,14 @@ export default function AdminPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
+  // Withdrawal/Payment Approval States
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
+  const [withdrawalFilter, setWithdrawalFilter] = useState('Pending');
+
   const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
+  const API_BASE_URL = 'https://beauty-affiliate-app.onrender.com/api';
 
   // Form Fields for Adding Product
   const [formData, setFormData] = useState({
@@ -53,6 +61,13 @@ export default function AdminPanel() {
   useEffect(() => {
     if (isAdminLoggedIn && activeTab === 'orders') {
       fetchAllOrders();
+    }
+  }, [isAdminLoggedIn, activeTab]);
+
+  // Fetch withdrawals when moving to withdrawals tab
+  useEffect(() => {
+    if (isAdminLoggedIn && activeTab === 'withdrawals') {
+      fetchWithdrawals();
     }
   }, [isAdminLoggedIn, activeTab]);
 
@@ -116,6 +131,54 @@ export default function AdminPanel() {
       setErrorMsg("Network transmission fallback timeout error or CORS restriction.");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // 💰 Fetch Withdrawal Requests
+  const fetchWithdrawals = async () => {
+    setLoadingWithdrawals(true);
+    setErrorMsg('');
+    try {
+      const response = await axios.get(`${API_BASE_URL}/admin/withdrawals?status=${withdrawalFilter}`);
+      setWithdrawals(response.data);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Failed to fetch withdrawal requests');
+    } finally {
+      setLoadingWithdrawals(false);
+    }
+  };
+
+  // ✅ Approve Withdrawal
+  const handleApproveWithdrawal = async (withdrawalId) => {
+    setProcessingId(withdrawalId);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/approve`);
+      setSuccessMsg(`✅ Payment of $${withdrawals.find(w => w._id === withdrawalId)?.amount} approved successfully!`);
+      // Remove from list or update status
+      setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Failed to approve withdrawal');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // ❌ Reject Withdrawal
+  const handleRejectWithdrawal = async (withdrawalId) => {
+    setProcessingId(withdrawalId);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/reject`);
+      setSuccessMsg(`❌ Payment request rejected. Funds returned to affiliate.`);
+      // Remove from list or update status
+      setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Failed to reject withdrawal');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -200,6 +263,13 @@ export default function AdminPanel() {
             >
               <Package size={18} /> Order Sync Log
             </button>
+            <button 
+              type="button"
+              onClick={() => { setActiveTab('withdrawals'); setIsMobileMenuOpen(false); setErrorMsg(''); setSuccessMsg(''); }}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-colors ${activeTab === 'withdrawals' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
+            >
+              <DollarSign size={18} /> Payment Approvals
+            </button>
           </nav>
         </div>
         <button onClick={() => setIsAdminLoggedIn(false)} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full mt-6"><LogOut size={18} /> Exit Console</button>
@@ -273,6 +343,197 @@ export default function AdminPanel() {
               <button type="submit" className="sm:col-span-2 w-full bg-neutral-950 hover:bg-black text-white font-bold text-sm tracking-wide py-3.5 rounded-xl transition-all shadow-md mt-2">Publish Item to Database</button>
             </form>
           </>
+        )}
+
+        {/* CONDITION 2: PAYMENT WITHDRAWAL APPROVAL VIEWPORT */}
+        {activeTab === 'withdrawals' && (
+          <div className="space-y-6">
+            <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Payment Approval Desk</h1>
+                <p className="text-xs sm:text-sm text-neutral-500 mt-1">Review and process affiliate withdrawal requests.</p>
+              </div>
+              <button 
+                type="button" onClick={fetchWithdrawals} disabled={loadingWithdrawals}
+                className="flex items-center justify-center gap-1.5 bg-neutral-200/70 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all disabled:opacity-50 self-start sm:self-auto shrink-0"
+              >
+                <RefreshCw size={13} className={loadingWithdrawals ? 'animate-spin' : ''} /> Refresh Queue
+              </button>
+            </header>
+
+            {/* FILTER TABS */}
+            <div className="flex bg-neutral-100 p-1 rounded-xl text-xs font-bold w-fit overflow-x-auto">
+              {['Pending', 'Approved', 'Rejected'].map((filter) => (
+                <button
+                  key={filter} type="button" onClick={() => { setWithdrawalFilter(filter); }}
+                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all ${withdrawalFilter === filter ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            {/* WITHDRAWAL REQUESTS LIST */}
+            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
+              {loadingWithdrawals ? (
+                <div className="p-12 text-center text-xs text-neutral-400 font-bold tracking-wide animate-pulse">Loading withdrawal requests...</div>
+              ) : withdrawals.length === 0 ? (
+                <div className="p-12 text-center text-xs text-neutral-400 font-semibold">No {withdrawalFilter.toLowerCase()} withdrawal requests found.</div>
+              ) : (
+                <div className="w-full">
+                  {/* 📱 MOBILE CARDS VIEW */}
+                  <div className="block lg:hidden divide-y divide-neutral-100">
+                    {withdrawals.map((withdrawal) => (
+                      <div key={withdrawal._id} className="p-4 space-y-3 bg-white text-xs">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <div className="p-2 bg-neutral-100 rounded-lg">
+                              <User size={14} className="text-neutral-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-neutral-950 text-sm leading-tight">{withdrawal.affiliateId?.name || 'Unknown'}</h4>
+                              <p className="text-[10px] text-neutral-400 font-mono">{withdrawal.affiliateId?.email}</p>
+                            </div>
+                          </div>
+                          <span className="font-black text-neutral-950 text-sm">${withdrawal.amount.toFixed(2)}</span>
+                        </div>
+
+                        <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1.5 text-neutral-600">
+                          <div className="flex items-center gap-2">
+                            <Phone size={11} className="text-neutral-400" />
+                            <span className="text-[11px] font-mono">{withdrawal.affiliateId?.phone || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign size={11} className="text-neutral-400" />
+                            <span className="text-[11px] font-semibold">{withdrawal.method} • {withdrawal.accountType}</span>
+                          </div>
+                          <div className="text-[11px] font-mono text-neutral-500 pt-1 border-t border-neutral-200/40 mt-1">
+                            Account: {withdrawal.accountNumber}
+                          </div>
+                          <div className="text-[10px] text-neutral-400 pt-1">
+                            {new Date(withdrawal.createdAt).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+
+                        {withdrawal.status === 'Pending' && (
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleApproveWithdrawal(withdrawal._id)}
+                              disabled={processingId !== null}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl transition-all text-[11px] disabled:opacity-40 shadow-sm flex items-center justify-center gap-1"
+                            >
+                              <CheckCircle size={12} /> {processingId === withdrawal._id ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectWithdrawal(withdrawal._id)}
+                              disabled={processingId !== null}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-2 rounded-xl transition-all text-[11px] disabled:opacity-40 shadow-sm flex items-center justify-center gap-1"
+                            >
+                              <XCircle size={12} /> {processingId === withdrawal._id ? 'Processing...' : 'Reject'}
+                            </button>
+                          </div>
+                        )}
+                        {withdrawal.status !== 'Pending' && (
+                          <div className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg ${
+                            withdrawal.status === 'Approved' 
+                              ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' 
+                              : 'text-red-600 bg-red-50 border border-red-100'
+                          }`}>
+                            {withdrawal.status === 'Approved' ? <CheckCircle size={12}/> : <XCircle size={12}/>}
+                            {withdrawal.status}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 🖥️ DESKTOP TABLE VIEW */}
+                  <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
+                          <th className="px-6 py-4">Affiliate Info</th>
+                          <th className="px-6 py-4">Payment Method</th>
+                          <th className="px-6 py-4">Account Details</th>
+                          <th className="px-6 py-4">Amount</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 text-xs">
+                        {withdrawals.map((withdrawal) => (
+                          <tr key={withdrawal._id} className="hover:bg-neutral-50/30 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-neutral-950">{withdrawal.affiliateId?.name || 'Unknown'}</div>
+                              <div className="text-neutral-400 text-[11px] font-mono mt-0.5">{withdrawal.affiliateId?.email}</div>
+                              <div className="text-neutral-500 text-[11px] mt-0.5">{withdrawal.affiliateId?.phone || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-neutral-900">{withdrawal.method}</div>
+                              <div className="text-[10px] text-neutral-400 mt-0.5">{withdrawal.accountType} Account</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-mono text-[11px] text-neutral-700 bg-neutral-50 px-2 py-1 rounded border border-neutral-200">
+                                {withdrawal.accountNumber}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 font-black text-neutral-950 text-sm">${withdrawal.amount.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-[11px] text-neutral-600">
+                              {new Date(withdrawal.createdAt).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {withdrawal.status === 'Pending' ? (
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveWithdrawal(withdrawal._id)}
+                                    disabled={processingId !== null}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] inline-flex items-center gap-1 shadow-sm disabled:opacity-40"
+                                  >
+                                    <CheckCircle size={12} /> {processingId === withdrawal._id ? '...' : 'Approve'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectWithdrawal(withdrawal._id)}
+                                    disabled={processingId !== null}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] inline-flex items-center gap-1 shadow-sm disabled:opacity-40"
+                                  >
+                                    <XCircle size={12} /> {processingId === withdrawal._id ? '...' : 'Reject'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg ${
+                                  withdrawal.status === 'Approved' 
+                                    ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' 
+                                    : 'text-red-600 bg-red-50 border border-red-100'
+                                }`}>
+                                  {withdrawal.status === 'Approved' ? <CheckCircle size={12}/> : <XCircle size={12}/>}
+                                  {withdrawal.status}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* CONDITION 2: GOOGLE SHEET ORDER MANAGEMENT MATRIX VIEWPORT */}
