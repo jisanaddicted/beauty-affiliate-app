@@ -108,7 +108,7 @@ export default function AdminPanel() {
     try {
       const payload = {
         action: "updateStatus",
-        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
         productId: order.productId,
         status: "Delivered"
       };
@@ -627,7 +627,7 @@ export default function AdminPanel() {
 
                           <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1 text-neutral-600">
                             <p><b>Customer:</b> {order.customerName}</p>
-                            <p className="font-mono text-[11px] text-neutral-500">{order.customerEmail}</p>
+                            <p className="font-mono text-[11px] text-neutral-500">{order.customerPhone}</p>
                             <p className="text-neutral-500 text-[11px] pt-1 border-t border-neutral-200/40 mt-1"><b>Address:</b> {order.shippingAddress}</p>
                           </div>
 
@@ -672,7 +672,7 @@ export default function AdminPanel() {
                             <tr key={idx} className="hover:bg-neutral-50/30 transition-colors">
                               <td className="px-6 py-4 max-w-[220px]">
                                 <div className="font-bold text-neutral-950">{order.customerName}</div>
-                                <div className="text-neutral-400 text-[11px] font-mono mt-0.5">{order.customerEmail}</div>
+                                <div className="text-neutral-400 text-[11px] font-mono mt-0.5">{order.customerPhone}</div>
                                 <div className="text-neutral-500 text-[11px] truncate mt-1" title={order.shippingAddress}>{order.shippingAddress}</div>
                               </td>
                               <td className="px-6 py-4">

@@ -9,7 +9,7 @@ export default function ProductLanding() {
   
   // Checkout Form States
   const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [orderStatus, setOrderStatus] = useState(null); // 'success' or 'error'
 
@@ -47,7 +47,7 @@ export default function ProductLanding() {
         productName: product.name,
         price: product.price,
         customerName: customerName,
-        customerEmail: customerEmail,
+        customerPhone: customerPhone,
         shippingAddress: shippingAddress,
         referralCode: referralCode || null,
       };
@@ -59,7 +59,7 @@ export default function ProductLanding() {
 
       setOrderStatus('success');
       setCustomerName('');
-      setCustomerEmail('');
+      setCustomerPhone('');
       setShippingAddress('');
     } catch (err) {
       console.error("Order Routing Error: ", err);
@@ -189,10 +189,10 @@ export default function ProductLanding() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Phone Number</label>
               <input 
-                type="type" required placeholder="yourname@domain.com" value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
+                type="tel" required placeholder="+1 (555) 000-0000" value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
                 className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white"
               />
             </div>

@@ -207,7 +207,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
                             </td>
                             <td className="px-6 py-4 text-neutral-600">
                               <div className="font-semibold text-neutral-800">{order.customerName}</div>
-                              <div className="text-[11px] text-neutral-400">{order.customerEmail}</div>
+                              <div className="text-[11px] text-neutral-400">{order.customerPhone}</div>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md inline-flex items-center gap-1.5 border ${isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>

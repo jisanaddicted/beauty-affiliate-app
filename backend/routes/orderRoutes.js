@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { productId, customerName, customerEmail, shippingAddress, referralCode } = req.body;
+    const { productId, customerName, customerPhone, shippingAddress, referralCode } = req.body;
 
     // 1. Locate the item to verify price metrics
     const product = await Product.findById(productId);
@@ -23,7 +23,7 @@ router.post('/', async (req, res) => {
     const newOrder = new Order({
       product: productId,
       customerName,
-      customerEmail,
+      customerPhone,
       shippingAddress,
       referralCode,
       commissionEarned
