@@ -56,25 +56,24 @@ export default function App() {
             const sheetOrders = sheetResponse.data.data;
 
             // 3. Calculate real-time revenues based on delivery status tags
-            const pendingRevenue = sheetOrders
-              .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
-              .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+            const pendingOrders = sheetOrders
+              .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way');
+            
+            const deliveredOrders = sheetOrders
+              .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered');
 
-            const approvedRevenue = sheetOrders
-              .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
-              .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+            // 4. Sync balances with backend using the new sync endpoint
+            const syncResponse = await axios.post('https://beauty-affiliate-app.onrender.com/api/affiliates/sync-balances', {
+              deliveredOrders: deliveredOrders,
+              pendingOrders: pendingOrders
+            }, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
 
-            // 4. Calculate 10% commission cuts
-            const livePendingCommission = pendingRevenue * 0.10;
-            const liveApprovedCommission = approvedRevenue * 0.10;
-
-            // 5. Update data mapping: preserve backend's withdrawableBalance, only update pending and total
-            affiliateData.balance = {
-              ...affiliateData.balance,
-              pendingBalance: livePendingCommission,
-              totalEarned: liveApprovedCommission // 💎 Only completed deliveries show up here now
-              // withdrawableBalance is managed by backend - DO NOT override it here
-            };
+            // 5. Use the synced balance from backend
+            if (syncResponse.data.balance) {
+              affiliateData.balance = syncResponse.data.balance;
+            }
           }
         } catch (sheetErr) {
           console.error("Failed to sync real-time sheet metrics to main dashboard cards:", sheetErr);
