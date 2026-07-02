@@ -622,7 +622,10 @@ export default function AdminPanel() {
                               <h4 className="font-bold text-neutral-950 text-sm leading-tight">{order.productName}</h4>
                               <p className="text-[10px] text-neutral-400 font-mono mt-0.5">ID: {order.productId}</p>
                             </div>
-                            <span className="font-black text-neutral-950 text-sm">${parseFloat(order.price).toFixed(2)}</span>
+                            <div className="text-right">
+                              <span className="font-black text-neutral-950 text-sm block">${parseFloat(order.totalPrice || order.price).toFixed(2)}</span>
+                              <span className="text-[10px] text-neutral-500">Qty: {order.quantity || 1}</span>
+                            </div>
                           </div>
 
                           <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1 text-neutral-600">
@@ -660,8 +663,8 @@ export default function AdminPanel() {
                         <tr className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
                           <th className="px-6 py-4">Customer Info</th>
                           <th className="px-6 py-4">Item Details</th>
+                          <th className="px-6 py-4">Total Amount</th>
                           <th className="px-6 py-4">Tracking Code</th>
-                          <th className="px-6 py-4">Volume</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -684,7 +687,10 @@ export default function AdminPanel() {
                                   {order.referralCode}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 font-black text-neutral-950">${parseFloat(order.price).toFixed(2)}</td>
+                          <td className="px-6 py-4">
+                            <div className="font-black text-neutral-950">${parseFloat(order.totalPrice || order.price).toFixed(2)}</div>
+                            <div className="text-[10px] text-neutral-500 mt-0.5">Qty: {order.quantity || 1}</div>
+                          </td>
                               <td className="px-6 py-4 text-right">
                                 {isDelivered ? (
                                   <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">

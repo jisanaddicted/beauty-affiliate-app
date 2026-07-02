@@ -65,10 +65,12 @@ function doPost(e) {
       data.shippingAddress,          // Column C (Index 2)
       data.productId,                // Column D (Index 3)
       data.productName,              // Column E (Index 4)
-      data.price,                    // Column F (Index 5)
-      data.referralCode || "DIRECT", // Column G (Index 6)
-      new Date(),                    // Column H (Index 7): Conversion Timestamp
-      "On Way"                       // Column I (Index 8): Initial state pipeline tag
+      data.price,                    // Column F (Index 5): Unit Price
+      data.quantity || 1,            // Column G (Index 6): Quantity
+      data.totalPrice || data.price, // Column H (Index 7): Total Price
+      data.referralCode || "DIRECT", // Column I (Index 8): Referral Code
+      new Date(),                    // Column J (Index 9): Conversion Timestamp
+      "On Way"                       // Column K (Index 10): Initial state pipeline tag
     ];
 
     sheet.appendRow(rowData);
@@ -143,9 +145,11 @@ function doGet(e) {
         productId: row[3] || "",
         productName: row[4] || "",
         price: row[5] || 0,
+        quantity: row[6] || 1,
+        totalPrice: row[7] || row[5] || 0,
         referralCode: rawRefCode,
-        date: row[7] || "",
-        deliveryStatus: row[8] || "On Way" // Safe fallback validation
+        date: row[9] || "",
+        deliveryStatus: row[10] || "On Way" // Safe fallback validation
       });
     }
 

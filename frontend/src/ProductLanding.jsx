@@ -11,6 +11,7 @@ export default function ProductLanding() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [orderStatus, setOrderStatus] = useState(null); // 'success' or 'error'
 
   // Extract dynamic parameters from raw window location path/query
@@ -46,6 +47,8 @@ export default function ProductLanding() {
         productId: product._id,
         productName: product.name,
         price: product.price,
+        quantity: quantity,
+        totalPrice: (product.price * quantity).toFixed(2),
         customerName: customerName,
         customerPhone: customerPhone,
         shippingAddress: shippingAddress,
@@ -126,6 +129,7 @@ export default function ProductLanding() {
           <div className="flex items-baseline gap-3 mb-5">
             <span className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-950">${product.price}</span>
             <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-emerald-100">Free Delivery</span>
+            <span className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-orange-100">Cash on Delivery</span>
           </div>
 
           <p className="text-neutral-600 text-sm leading-relaxed mb-6">
@@ -198,19 +202,45 @@ export default function ProductLanding() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Shipping Address</label>
-              <textarea 
-                rows="3" required placeholder="Street, City, Zip Code" value={shippingAddress}
-                onChange={(e) => setShippingAddress(e.target.value)}
-                className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white resize-none"
-              />
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-1">Quantity</label>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-10 h-10 flex items-center justify-center border border-neutral-200 rounded-xl bg-white hover:bg-neutral-50 text-neutral-700 font-bold text-lg transition-colors"
+                >
+                  -
+                </button>
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3 py-2.5 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-black bg-white text-center font-bold"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="w-10 h-10 flex items-center justify-center border border-neutral-200 rounded-xl bg-white hover:bg-neutral-50 text-neutral-700 font-bold text-lg transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-neutral-100/50 p-3 rounded-xl border border-neutral-200/60">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-600 font-medium">Total Amount:</span>
+                <span className="text-lg font-black text-neutral-950">${(product.price * quantity).toFixed(2)}</span>
+              </div>
+              <p className="text-[10px] text-neutral-500 mt-1 text-right">Pay on delivery</p>
             </div>
 
             <button 
               type="submit" 
               className="w-full bg-neutral-950 hover:bg-black text-white py-3 rounded-xl text-xs font-bold tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5 mt-2"
             >
-              <ShoppingBag size={14} /> Buy Now - ${product ? product.price : '...'} <ArrowRight size={12} />
+              <ShoppingBag size={14} /> Place Order - ${(product ? product.price * quantity : 0).toFixed(2)} <ArrowRight size={12} />
             </button>
           </form>
         </div>
