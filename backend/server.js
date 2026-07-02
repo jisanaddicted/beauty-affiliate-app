@@ -34,8 +34,22 @@ mongoose.connect(MONGODB_URI)
     console.error('❌ MongoDB database connection error:', error.message);
   });
 
+// 💓 Health Check Endpoint - Keeps the server alive and monitors status
+app.get('/api/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  
+  res.status(200).json({
+    status: 'ok',
+    message: 'Beauty Affiliate Backend is running',
+    timestamp: new Date().toISOString(),
+    database: dbStatus,
+    uptime: process.uptime()
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server is awake and listening on port ${PORT}`);
+  console.log(`💓 Health check available at http://localhost:${PORT}/api/health`);
 });
