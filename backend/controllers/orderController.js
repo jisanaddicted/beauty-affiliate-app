@@ -7,36 +7,41 @@ import Affiliate from '../models/Affiliate.js';
  * @route   POST /api/orders
  * @access  Public (Simulating an external webhook from Shopify/WooCommerce)
  */
-export const createOrder = async (req, res) => {
-  try {
-    const { orderNumber, productId, quantity, affiliateCode } = req.body;
+ export const createOrder = async (req, res) => {
+   try {
+     const { orderNumber, productId, quantity, affiliateCode } = req.body;
 
-    // 1. Verify the order number is unique
-    const orderExists = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
-    if (orderExists) {
-      return res.status(400).json({ message: `Order number ${orderNumber} has already been processed.` });
-    }
+     // 1. Verify the order number is unique
+     const orderExists = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
+     if (orderExists) {
+       return res.status(400).json({ message: `Order number ${orderNumber} has already been processed.` });
+     }
 
-    // 2. Fetch the target product to get its current price and commission rate
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({ message: 'Target product not found.' });
-    }
+     // 2. Fetch the target product to get its current price and commission rate
+     const product = await Product.findById(productId);
+     if (!product) {
+       return res.status(404).json({ message: 'Target product not found.' });
+     }
 
-    // 3. Calculate total product cost
-    const totalAmount = product.price * quantity;
-    let commissionEarned = 0;
-    let validAffiliate = null;
+     // 3. Calculate total product cost in Taka (BDT)
+     const totalAmount = product.price * quantity;
+     let commissionEarned = 0;
+     let validAffiliate = null;
 
-    // 4. If an affiliate code was used, look up the creator and run the math
-    if (affiliateCode) {
-      validAffiliate = await Affiliate.findOne({ affiliateCode: affiliateCode.toUpperCase() });
-      
-      if (validAffiliate) {
-        // Commission Math: (Total Price * Commission Percentage Rate) / 100
-        commissionEarned = (totalAmount * product.commissionRate) / 100;
-      }
-    }
+     // 4. If an affiliate code was used, look up the creator and run the math
+     if (affiliateCode) {
+       validAffiliate = await Affiliate.findOne({ affiliateCode: affiliateCode.toUpperCase() });
+       
+       if (validAffiliate) {
+         // Convert Taka to USD for commission calculation
+         // Exchange rate: 1 USD = 110 BDT (adjust as needed)
+         const BDT_TO_USD_RATE = 110;
+         const totalAmountInUSD = totalAmount / BDT_TO_USD_RATE;
+         
+         // Commission Math: (Total Price in USD * Commission Percentage Rate) / 100
+         commissionEarned = (totalAmountInUSD * product.commissionRate) / 100;
+       }
+     }
 
     // 5. Create the new order entry in MongoDB
     const newOrder = await Order.create({

@@ -623,7 +623,7 @@ export default function AdminPanel() {
                               <p className="text-[10px] text-neutral-400 font-mono mt-0.5">ID: {order.productId}</p>
                             </div>
                             <div className="text-right">
-                              <span className="font-black text-neutral-950 text-sm block">${parseFloat(order.totalPrice || order.price).toFixed(2)}</span>
+                              <span className="font-black text-neutral-950 text-sm block">৳{parseFloat(order.totalPrice || order.price).toFixed(2)}</span>
                               <span className="text-[10px] text-neutral-500">Qty: {order.quantity || 1}</span>
                             </div>
                           </div>
@@ -688,7 +688,7 @@ export default function AdminPanel() {
                                 </span>
                               </td>
                           <td className="px-6 py-4">
-                            <div className="font-black text-neutral-950">${parseFloat(order.totalPrice || order.price).toFixed(2)}</div>
+                            <div className="font-black text-neutral-950">৳{parseFloat(order.totalPrice || order.price).toFixed(2)}</div>
                             <div className="text-[10px] text-neutral-500 mt-0.5">Qty: {order.quantity || 1}</div>
                           </td>
                               <td className="px-6 py-4 text-right">
