@@ -47,11 +47,11 @@ export default function CreatorDashboard({ defaultRefCode }) {
   // Note: If no status exists in row, it defaults gracefully to 'On Way'
   const pendingRevenue = orders
     .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
-    .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+    .reduce((sum, order) => sum + (parseFloat(order.totalPrice || order.price) || 0), 0);
 
   const approvedRevenue = orders
     .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
-    .reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0);
+    .reduce((sum, order) => sum + (parseFloat(order.totalPrice || order.price) || 0), 0);
 
   // Commission Calculations (Assuming 10% rate)
   const pendingCommission = pendingRevenue * 0.10;
@@ -173,7 +173,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
                         
                         <div className="bg-neutral-50/50 p-2.5 rounded-xl border border-neutral-200/30 text-neutral-600 space-y-1">
                           <div className="flex justify-between"><span className="text-neutral-400 text-[10px]">Customer:</span> <span className="font-semibold text-neutral-800">{order.customerName}</span></div>
-                          <div className="flex justify-between"><span className="text-neutral-400 text-[10px]">Total Bill:</span> <span className="font-bold text-neutral-950">${parseFloat(order.price).toFixed(2)}</span></div>
+                          <div className="flex justify-between"><span className="text-neutral-400 text-[10px]">Total Bill:</span> <span className="font-bold text-neutral-950">${parseFloat(order.totalPrice || order.price).toFixed(2)}</span></div>
                           <div className="flex justify-between"><span className="text-neutral-400 text-[10px]">Date Log:</span> <span className="text-neutral-500">{order.date ? new Date(order.date).toLocaleDateString() : 'N/A'}</span></div>
                         </div>
                       </div>
@@ -215,7 +215,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
                                 {order.deliveryStatus || 'On Way'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 font-black text-neutral-950">${parseFloat(order.price).toFixed(2)}</td>
+                            <td className="px-6 py-4 font-black text-neutral-950">${parseFloat(order.totalPrice || order.price).toFixed(2)}</td>
                           </tr>
                         );
                       })}
