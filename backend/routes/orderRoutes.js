@@ -2,8 +2,12 @@ import express from 'express';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Affiliate from '../models/Affiliate.js'; // Make sure your user model file path matches this file name
+import axios from 'axios';
 
 const router = express.Router();
+
+// Google Apps Script URL for sending order data to Google Sheets
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
 
 router.post('/', async (req, res) => {
   try {
@@ -35,7 +39,36 @@ router.post('/', async (req, res) => {
     });
     await newOrder.save();
 
-    // 4. Update the Affiliate's pending tracking dashboard values if tracking exists
+    // 5. Send order data to Google Sheets
+    try {
+      const sheetData = {
+        customerName: customerName || '',
+        customerPhone: customerPhone || '',
+        shippingAddress: shippingAddress || '',
+        productId: productId || '',
+        productName: product.name || '',
+        price: product.price || 0,
+        quantity: quantity || 1,
+        totalPrice: totalAmount || product.price,
+        commissionRate: product.commissionRate || 10,
+        referralCode: referralCode || 'DIRECT',
+        date: new Date().toISOString(),
+        deliveryStatus: 'On Way'
+      };
+
+      // Send to Google Sheets (fire and forget - don't wait for response)
+      axios.post(GOOGLE_SHEET_URL, JSON.stringify(sheetData), {
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      }).catch(err => {
+        console.error('Failed to sync to Google Sheets:', err.message);
+        // Don't fail the order if Google Sheets sync fails
+      });
+    } catch (sheetError) {
+      console.error('Google Sheets sync error:', sheetError);
+      // Continue with the order even if Google Sheets sync fails
+    }
+
+    // 6. Update the Affiliate's pending tracking dashboard values if tracking exists
     if (referralCode) {
       const creatorProfile = await Affiliate.findOne({ affiliateCode: referralCode });
       if (creatorProfile) {

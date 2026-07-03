@@ -1,6 +1,10 @@
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Affiliate from '../models/Affiliate.js';
+import axios from 'axios';
+
+// Google Apps Script URL for sending order data to Google Sheets
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
 
 /**
  * @desc    Simulate or capture a new customer checkout order
@@ -54,7 +58,36 @@ import Affiliate from '../models/Affiliate.js';
      commissionStatus: validAffiliate ? 'pending' : 'cancelled' // 'cancelled' or 'none' if no affiliate attached
    });
 
-    // 6. If a valid affiliate tracked this sale, update their pending balance metrics
+    // 6. Send order data to Google Sheets
+    try {
+      const sheetData = {
+        customerName: req.body.customerName || 'Customer',
+        customerPhone: req.body.customerPhone || 'N/A',
+        shippingAddress: req.body.shippingAddress || 'N/A',
+        productId: productId || '',
+        productName: product.name || '',
+        price: product.price || 0,
+        quantity: quantity || 1,
+        totalPrice: totalPrice || product.price,
+        commissionRate: product.commissionRate || 10,
+        referralCode: affiliateCode || 'DIRECT',
+        date: new Date().toISOString(),
+        deliveryStatus: 'On Way'
+      };
+
+      // Send to Google Sheets (fire and forget - don't wait for response)
+      axios.post(GOOGLE_SHEET_URL, JSON.stringify(sheetData), {
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      }).catch(err => {
+        console.error('Failed to sync to Google Sheets:', err.message);
+        // Don't fail the order if Google Sheets sync fails
+      });
+    } catch (sheetError) {
+      console.error('Google Sheets sync error:', sheetError);
+      // Continue with the order even if Google Sheets sync fails
+    }
+
+    // 7. If a valid affiliate tracked this sale, update their pending balance metrics
     if (validAffiliate) {
       await Affiliate.findByIdAndUpdate(
         validAffiliate._id,
@@ -65,7 +98,7 @@ import Affiliate from '../models/Affiliate.js';
       );
     }
 
-    // 7. Respond back with order tracking details
+    // 8. Respond back with order tracking details
     return res.status(201).json({
       message: 'Order processed successfully.',
       order: newOrder
