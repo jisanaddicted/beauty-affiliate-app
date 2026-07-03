@@ -24,7 +24,7 @@ function doPost(e) {
         if (String(rows[i][1]).toLowerCase().trim() === String(data.customerPhone).toLowerCase().trim() &&
           String(rows[i][3]).trim() === String(data.productId).trim()) {
 
-          sheet.getRange(i + 1, 9).setValue(data.status); // Modifies Column I (Index 8)
+          sheet.getRange(i + 1, 12).setValue(data.status); // Modifies Column L (Index 11) for delivery status
           updated = true;
           break;
         }
@@ -68,9 +68,10 @@ function doPost(e) {
       data.price,                    // Column F (Index 5): Unit Price
       data.quantity || 1,            // Column G (Index 6): Quantity
       data.totalPrice || data.price, // Column H (Index 7): Total Price
-      data.referralCode || "DIRECT", // Column I (Index 8): Referral Code
-      new Date(),                    // Column J (Index 9): Conversion Timestamp
-      "On Way"                       // Column K (Index 10): Initial state pipeline tag
+      data.commissionRate || 10,     // Column I (Index 8): Commission Rate (%)
+      data.referralCode || "DIRECT", // Column J (Index 9): Referral Code
+      new Date(),                    // Column K (Index 10): Conversion Timestamp
+      "On Way"                       // Column L (Index 11): Initial state pipeline tag
     ];
 
     sheet.appendRow(rowData);
@@ -130,7 +131,8 @@ function doGet(e) {
         continue;
       }
 
-      var rawRefCode = row[6] !== undefined && row[6] !== null ? row[6] : "DIRECT";
+      var commissionRate = row[8] !== undefined && row[8] !== null ? row[8] : 10;
+      var rawRefCode = row[9] !== undefined && row[9] !== null ? row[9] : "DIRECT";
       var orderRefCode = String(rawRefCode).toLowerCase().trim();
 
       // If filtering parameter was fed into route URL context, skip unmatching entries
@@ -147,9 +149,10 @@ function doGet(e) {
         price: row[5] || 0,
         quantity: row[6] || 1,
         totalPrice: row[7] || row[5] || 0,
+        commissionRate: parseFloat(commissionRate) || 10,
         referralCode: rawRefCode,
-        date: row[9] || "",
-        deliveryStatus: row[10] || "On Way" // Safe fallback validation
+        date: row[10] || "",
+        deliveryStatus: row[11] || "On Way" // Safe fallback validation
       });
     }
 

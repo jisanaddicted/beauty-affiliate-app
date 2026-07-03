@@ -43,7 +43,7 @@ export default function CreatorDashboard({ defaultRefCode }) {
     fetchOrderHistory(refCodeInput);
   };
 
-  // 🧮 LIVE BALANCES CALCULATIONS BASED ON GOOGLE SHEET ROW STATUS (Assuming Column I / row[8] contains 'On Way' or 'Delivered')
+  // 🧮 LIVE BALANCES CALCULATIONS BASED ON GOOGLE SHEET ROW STATUS
   // Note: If no status exists in row, it defaults gracefully to 'On Way'
   const pendingRevenue = orders
     .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
@@ -53,9 +53,22 @@ export default function CreatorDashboard({ defaultRefCode }) {
     .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
     .reduce((sum, order) => sum + (parseFloat(order.totalPrice || order.price) || 0), 0);
 
-  // Commission Calculations (Assuming 10% rate)
-  const pendingCommission = pendingRevenue * 0.10;
-  const approvedCommission = approvedRevenue * 0.10;
+  // Commission Calculations using actual commission rates from Google Sheet
+  const pendingCommission = orders
+    .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
+    .reduce((sum, order) => {
+      const total = parseFloat(order.totalPrice || order.price) || 0;
+      const rate = parseFloat(order.commissionRate) || 10;
+      return sum + (total * rate / 100);
+    }, 0);
+
+  const approvedCommission = orders
+    .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
+    .reduce((sum, order) => {
+      const total = parseFloat(order.totalPrice || order.price) || 0;
+      const rate = parseFloat(order.commissionRate) || 10;
+      return sum + (total * rate / 100);
+    }, 0);
 
   // Frontend Filtering Array Logic
   const filteredOrders = orders.filter(order => {
