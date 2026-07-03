@@ -36,6 +36,16 @@ export default function App() {
     if (isLoggedIn) fetchProducts();
   }, [isLoggedIn]);
 
+  // Refresh dashboard data when navigating to dashboard tab
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'dashboard') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetchDashboardData(token);
+      }
+    }
+  }, [isLoggedIn, activeTab]);
+
   const fetchDashboardData = async (token) => {
     try {
       // 1. Fetch the base affiliate profile from your Node.js backend
