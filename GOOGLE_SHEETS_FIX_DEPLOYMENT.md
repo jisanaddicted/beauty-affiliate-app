@@ -25,6 +25,13 @@
 
 **Fix Applied:** Updated commission calculation formula to `(unitPrice × quantity) × rate / 100` to ensure commissions are calculated correctly for orders with multiple quantities.
 
+### 4. **Backend Sync Endpoint Using Wrong Calculation**
+**Problem:** The backend `syncAffiliateBalances` endpoint in `affiliateController.js` was:
+- Only using `order.price` (unit price) without multiplying by quantity
+- Hardcoding 10% commission rate instead of using `order.commissionRate`
+
+**Fix Applied:** Updated the sync endpoint to use the correct formula: `(unitPrice × quantity) × commissionRate / 100`
+
 ### 3. **Status Update Column Mismatch**
 **Problem:** Admin was updating delivery status in Column I (Index 8), but after adding commission rate column, delivery status moved to Column L (Index 11).
 

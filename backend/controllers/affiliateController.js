@@ -12,13 +12,21 @@ export const syncAffiliateBalances = async (req, res) => {
       return res.status(404).json({ message: 'Affiliate profile not found.' });
     }
 
-    // Calculate totals from delivered and pending orders
-    const deliveredTotal = deliveredOrders?.reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0) || 0;
-    const pendingTotal = pendingOrders?.reduce((sum, order) => sum + (parseFloat(order.price) || 0), 0) || 0;
+    // Calculate commissions from delivered and pending orders
+    // Formula: (unitPrice × quantity) × commissionRate / 100
+    const deliveredCommission = deliveredOrders?.reduce((sum, order) => {
+      const unitPrice = parseFloat(order.price) || 0;
+      const quantity = parseInt(order.quantity) || 1;
+      const rate = parseFloat(order.commissionRate) || 10;
+      return sum + (unitPrice * quantity * rate / 100);
+    }, 0) || 0;
 
-    // Calculate commissions (10% rate)
-    const deliveredCommission = deliveredTotal * 0.10;
-    const pendingCommission = pendingTotal * 0.10;
+    const pendingCommission = pendingOrders?.reduce((sum, order) => {
+      const unitPrice = parseFloat(order.price) || 0;
+      const quantity = parseInt(order.quantity) || 1;
+      const rate = parseFloat(order.commissionRate) || 10;
+      return sum + (unitPrice * quantity * rate / 100);
+    }, 0) || 0;
 
     // Calculate total withdrawn amount from withdrawal history
     const withdrawals = await import('../models/Withdrawal.js').then(m => 
