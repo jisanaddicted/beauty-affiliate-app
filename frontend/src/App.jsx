@@ -14,6 +14,9 @@ export default function App() {
 
   // NEW: Mobile Navigation Sidebar Drawer Toggle State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Prevent balance sync after withdrawal (Google Sheets doesn't track withdrawals)
+  const [skipBalanceSync, setSkipBalanceSync] = useState(false);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -56,7 +59,9 @@ export default function App() {
       const affiliateData = response.data;
       const creatorCode = affiliateData.affiliateCode;
 
-      if (creatorCode) {
+      // Only sync with Google Sheets if we didn't just complete a withdrawal
+      // (Google Sheets doesn't track withdrawals, so we don't want to overwrite the balance)
+      if (creatorCode && !skipBalanceSync) {
         try {
           // 2. Fetch live sheet records from your Apps Script URL
           const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
@@ -88,6 +93,9 @@ export default function App() {
         } catch (sheetErr) {
           console.error("Failed to sync real-time sheet metrics to main dashboard cards:", sheetErr);
         }
+      } else if (skipBalanceSync) {
+        // Reset the flag after skipping sync
+        setSkipBalanceSync(false);
       }
 
       setAffiliate(affiliateData);
@@ -359,7 +367,10 @@ export default function App() {
         {activeTab === 'payouts' && (
           <PayoutsTab
             affiliateBalance={affiliate.balance}
-            onBalanceUpdate={(updatedBalance) => setAffiliate({ ...affiliate, balance: updatedBalance })}
+            onBalanceUpdate={(updatedBalance) => {
+              setAffiliate({ ...affiliate, balance: updatedBalance });
+              setSkipBalanceSync(true); // Prevent dashboard from overwriting the balance
+            }}
           />
         )}
       </main>
