@@ -20,6 +20,11 @@
 - Updated `doGet()` to read commission rates from the sheet
 - Updated `CreatorDashboard.jsx` to calculate commissions using actual rates from the sheet
 
+### 3. **Commission Not Multiplying by Quantity**
+**Problem:** Commission was calculated as `totalPrice × rate / 100`, which didn't properly account for quantity when totalPrice was just the unit price.
+
+**Fix Applied:** Updated commission calculation formula to `(unitPrice × quantity) × rate / 100` to ensure commissions are calculated correctly for orders with multiple quantities.
+
 ### 3. **Status Update Column Mismatch**
 **Problem:** Admin was updating delivery status in Column I (Index 8), but after adding commission rate column, delivery status moved to Column L (Index 11).
 

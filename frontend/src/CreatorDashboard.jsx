@@ -54,20 +54,25 @@ export default function CreatorDashboard({ defaultRefCode }) {
     .reduce((sum, order) => sum + (parseFloat(order.totalPrice || order.price) || 0), 0);
 
   // Commission Calculations using actual commission rates from Google Sheet
+  // Formula: (unit price × quantity) × commission rate / 100
   const pendingCommission = orders
     .filter(order => (order.deliveryStatus || 'On Way').toLowerCase() === 'on way')
     .reduce((sum, order) => {
-      const total = parseFloat(order.totalPrice || order.price) || 0;
+      const unitPrice = parseFloat(order.price) || 0;
+      const quantity = parseInt(order.quantity) || 1;
       const rate = parseFloat(order.commissionRate) || 10;
-      return sum + (total * rate / 100);
+      const commission = (unitPrice * quantity) * rate / 100;
+      return sum + commission;
     }, 0);
 
   const approvedCommission = orders
     .filter(order => (order.deliveryStatus || '').toLowerCase() === 'delivered')
     .reduce((sum, order) => {
-      const total = parseFloat(order.totalPrice || order.price) || 0;
+      const unitPrice = parseFloat(order.price) || 0;
+      const quantity = parseInt(order.quantity) || 1;
       const rate = parseFloat(order.commissionRate) || 10;
-      return sum + (total * rate / 100);
+      const commission = (unitPrice * quantity) * rate / 100;
+      return sum + commission;
     }, 0);
 
   // Frontend Filtering Array Logic
