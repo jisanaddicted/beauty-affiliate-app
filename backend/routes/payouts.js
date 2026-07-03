@@ -44,12 +44,21 @@ router.post('/withdraw', protect, async (req, res) => {
       updatedBalance: affiliate.balance 
     });
 
-  } catch (err) {
-    console.error("🔥 Error processing payout:", err);
-    return res.status(400).json({ 
-      message: err.errors?.accountNumber?.message || err.message || 'Server error tracking transaction request.' 
-    });
-  }
+   } catch (err) {
+     console.error("🔥 Error processing payout:", err);
+     
+     // Handle Mongoose validation errors
+     if (err.name === 'ValidationError') {
+       const validationErrors = Object.values(err.errors).map(e => e.message);
+       return res.status(400).json({ 
+         message: validationErrors[0] || 'Validation failed. Please check your input.'
+       });
+     }
+     
+     return res.status(400).json({ 
+       message: err.message || 'Server error tracking transaction request.' 
+     });
+   }
 });
 
 // 📋 2. Fetch withdrawal history
