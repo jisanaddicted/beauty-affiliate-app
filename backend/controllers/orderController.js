@@ -23,36 +23,36 @@ import Affiliate from '../models/Affiliate.js';
        return res.status(404).json({ message: 'Target product not found.' });
      }
 
-     // 3. Calculate total product cost in Taka (BDT)
-     const totalAmount = product.price * quantity;
-     let commissionEarned = 0;
-     let validAffiliate = null;
+    // 3. Calculate total product cost in Taka (BDT)
+    const totalPrice = product.price * quantity;
+    let commissionEarned = 0;
+    let validAffiliate = null;
 
-     // 4. If an affiliate code was used, look up the creator and run the math
-     if (affiliateCode) {
-       validAffiliate = await Affiliate.findOne({ affiliateCode: affiliateCode.toUpperCase() });
-       
-       if (validAffiliate) {
-         // Convert Taka to USD for commission calculation
-         // Exchange rate: 1 USD = 110 BDT (adjust as needed)
-         const BDT_TO_USD_RATE = 110;
-         const totalAmountInUSD = totalAmount / BDT_TO_USD_RATE;
-         
-         // Commission Math: (Total Price in USD * Commission Percentage Rate) / 100
-         commissionEarned = (totalAmountInUSD * product.commissionRate) / 100;
-       }
-     }
+    // 4. If an affiliate code was used, look up the creator and run the math
+    if (affiliateCode) {
+      validAffiliate = await Affiliate.findOne({ affiliateCode: affiliateCode.toUpperCase() });
+      
+      if (validAffiliate) {
+        // Convert Taka to USD for commission calculation
+        // Exchange rate: 1 USD = 110 BDT (adjust as needed)
+        const BDT_TO_USD_RATE = 110;
+        const totalPriceInUSD = totalPrice / BDT_TO_USD_RATE;
+        
+        // Commission Math: (Total Price in USD * Commission Percentage Rate) / 100
+        commissionEarned = (totalPriceInUSD * product.commissionRate) / 100;
+      }
+    }
 
-    // 5. Create the new order entry in MongoDB
-    const newOrder = await Order.create({
-      orderNumber,
-      product: productId,
-      quantity,
-      totalAmount,
-      affiliateCode: validAffiliate ? affiliateCode.toUpperCase() : null,
-      commissionEarned,
-      commissionStatus: validAffiliate ? 'pending' : 'cancelled' // 'cancelled' or 'none' if no affiliate attached
-    });
+   // 5. Create the new order entry in MongoDB
+   const newOrder = await Order.create({
+     orderNumber,
+     product: productId,
+     quantity,
+     totalAmount: totalPrice,
+     affiliateCode: validAffiliate ? affiliateCode.toUpperCase() : null,
+     commissionEarned,
+     commissionStatus: validAffiliate ? 'pending' : 'cancelled' // 'cancelled' or 'none' if no affiliate attached
+   });
 
     // 6. If a valid affiliate tracked this sale, update their pending balance metrics
     if (validAffiliate) {

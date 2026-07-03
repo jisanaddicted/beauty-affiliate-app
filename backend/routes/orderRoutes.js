@@ -7,24 +7,29 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { productId, customerName, customerPhone, shippingAddress, referralCode } = req.body;
+    const { productId, customerName, customerPhone, shippingAddress, quantity, referralCode } = req.body;
 
     // 1. Locate the item to verify price metrics
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: 'Target product not found.' });
 
-    // 2. Compute commission percentage payouts
+    // 2. Calculate total amount based on quantity
+    const totalAmount = product.price * quantity;
+
+    // 3. Compute commission percentage payouts based on total amount
     let commissionEarned = 0;
     if (referralCode) {
-      commissionEarned = (product.price * product.commissionRate) / 100;
+      commissionEarned = (totalAmount * product.commissionRate) / 100;
     }
 
-    // 3. Create the order record entry
+    // 4. Create the order record entry
     const newOrder = new Order({
       product: productId,
       customerName,
       customerPhone,
       shippingAddress,
+      quantity,
+      totalAmount,
       referralCode,
       commissionEarned
     });
