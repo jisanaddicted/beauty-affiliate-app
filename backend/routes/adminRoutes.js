@@ -84,11 +84,12 @@ router.put('/withdrawals/:id/approve', async (req, res) => {
     withdrawal.approvedAt = Date.now();
     await withdrawal.save();
     
-    // Move funds from pendingBalance to totalEarned (already withdrawn)
+    // Clear from pendingBalance (funds already deducted from withdrawableBalance when requested)
     const affiliate = await Affiliate.findById(withdrawal.affiliateId._id);
     if (affiliate) {
       affiliate.balance.pendingBalance -= withdrawal.amount;
-      affiliate.balance.totalEarned -= withdrawal.amount;
+      // Note: totalEarned stays the same (it represents lifetime earnings)
+      // Note: withdrawableBalance was already reduced when withdrawal was requested
       await affiliate.save();
     }
     
