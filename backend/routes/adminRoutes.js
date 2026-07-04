@@ -39,7 +39,7 @@ router.post('/products', async (req, res) => {
       description,
       category,
       stock,
-      highlights: highlights.split(',').map(tag => tag.trim()), // Splits comma separated strings into an array
+      highlights: highlights ? highlights.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [], // Splits comma separated strings into an array, filters out empty strings
       image
     });
 
