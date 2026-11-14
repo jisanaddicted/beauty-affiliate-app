@@ -12,7 +12,7 @@ const orderSchema = new mongoose.Schema(
     commissionEarned: { type: Number, default: 0 },
     status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'pending' }
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'orders' }
 );
 
 export default mongoose.model('Order', orderSchema);

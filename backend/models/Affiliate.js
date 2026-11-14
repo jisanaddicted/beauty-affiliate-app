@@ -43,6 +43,7 @@ const affiliateSchema = new mongoose.Schema(
   },
   {
     timestamps: true, // Automatically manages createdAt and updatedAt values
+    collection: 'affiliates',
   }
 );
 

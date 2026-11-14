@@ -35,7 +35,7 @@ const WithdrawalSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { collection: 'withdrawals' });
 
 // 🚀 CRITICAL FIX: Change from module.exports to export default
 export default mongoose.model('Withdrawal', WithdrawalSchema);

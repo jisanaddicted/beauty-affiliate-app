@@ -1,6 +1,23 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'node:crypto';
 import Affiliate from '../models/Affiliate.js';
+
+const generateAffiliateCode = async (name) => {
+  const namePrefix = String(name || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 6) || 'CREATOR';
+
+  let affiliateCode;
+  do {
+    affiliateCode = `${namePrefix}-${randomBytes(4).toString('hex').toUpperCase()}`;
+  } while (await Affiliate.exists({ affiliateCode }));
+
+  return affiliateCode;
+};
 
 /**
  * @desc    Register a new affiliate account
@@ -9,7 +26,7 @@ import Affiliate from '../models/Affiliate.js';
  */
 export const registerAffiliate = async (req, res) => {
   try {
-    const { name, email, password, affiliateCode } = req.body;
+    const { name, email, password } = req.body;
 
     // 1. Check if the affiliate email already exists
     const emailExists = await Affiliate.findOne({ email });
@@ -17,11 +34,8 @@ export const registerAffiliate = async (req, res) => {
       return res.status(400).json({ message: 'An account with this email already exists.' });
     }
 
-    // 2. Check if the custom tracking code is already claimed
-    const codeExists = await Affiliate.findOne({ affiliateCode: affiliateCode.toUpperCase() });
-    if (codeExists) {
-      return res.status(400).json({ message: 'This affiliate code is already taken.' });
-    }
+    // 2. Assign a unique tracking code automatically to the new account
+    const affiliateCode = await generateAffiliateCode(name);
 
     // 3. Hash the plain text password for storage security
     const salt = await bcrypt.genSalt(10);

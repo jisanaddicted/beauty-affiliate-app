@@ -21,7 +21,6 @@ export default function App() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userCode, setUserCode] = useState('');
   const [products, setProducts] = useState([]);
   const [affiliate, setAffiliate] = useState({
     name: "",
@@ -122,7 +121,7 @@ export default function App() {
     setErrorMessage('');
     try {
       if (authMode === 'signup') {
-        await axios.post('/api/auth/register', { name, email, password, affiliateCode: userCode });
+        await axios.post('/api/auth/register', { name, email, password });
         const loginResponse = await axios.post('/api/auth/login', { email, password });
         localStorage.setItem('token', loginResponse.data.token);
         await fetchDashboardData(loginResponse.data.token);
@@ -183,16 +182,10 @@ export default function App() {
 
             <form onSubmit={handleAuthSubmit} className="space-y-4">
               {authMode === 'signup' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Full Name</label>
-                    <input type="text" required placeholder="Jisan Rahman" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 border rounded-xl text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Desired Affiliate Code</label>
-                    <input type="text" required placeholder="JISAN10" value={userCode} onChange={(e) => setUserCode(e.target.value.toUpperCase().replace(/\s+/g, ''))} className="w-full p-3 border rounded-xl text-sm font-mono" />
-                  </div>
-                </>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Full Name</label>
+                  <input type="text" required placeholder="Jisan Rahman" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 border rounded-xl text-sm" />
+                </div>
               )}
               <div>
                 <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Email</label>
