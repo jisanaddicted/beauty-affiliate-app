@@ -2,6 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/authRoutes.js';
 import affiliateRoutes from './routes/affiliateRoutes.js';
 import orderRoutes from './routes/orderRoutes.js'; 
@@ -12,6 +14,8 @@ import payoutRoutes from './routes/payouts.js'; // 📥 Imported the payout rout
 dotenv.config();
 
 const app = express();
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDistPath = path.resolve(currentDir, '../frontend/dist');
 
 app.use(cors());
 app.use(express.json());
@@ -45,6 +49,15 @@ app.get('/api/health', (req, res) => {
     database: dbStatus,
     uptime: process.uptime()
   });
+});
+
+// Serve the Vite production build from this same Render web service.
+app.use(express.static(frontendDistPath));
+
+// Support client-side routes such as /admin and /product/:id.
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 5000;
