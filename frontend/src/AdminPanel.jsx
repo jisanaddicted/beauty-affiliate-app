@@ -34,6 +34,20 @@ export default function AdminPanel() {
 
   const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
   const API_BASE_URL = '/api';
+  const adminAuthConfig = () => ({
+    headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` }
+  });
+  const reportAdminRequestError = (error, fallbackMessage) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      localStorage.removeItem('adminToken');
+      setIsAdminLoggedIn(false);
+    }
+    setErrorMsg(error.response?.data?.message || fallbackMessage);
+  };
+
+  useEffect(() => {
+    setIsAdminLoggedIn(Boolean(localStorage.getItem('adminToken')));
+  }, []);
 
   // Form Fields for Adding Product
   const [formData, setFormData] = useState({
@@ -76,7 +90,8 @@ export default function AdminPanel() {
     setErrorMsg('');
     try {
       const response = await axios.post(`${API_BASE_URL}/admin/login`, { email, password });
-      if (response.data) {
+      if (response.data?.token) {
+        localStorage.setItem('adminToken', response.data.token);
         setIsAdminLoggedIn(true);
       }
     } catch (err) {
@@ -89,7 +104,7 @@ export default function AdminPanel() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      await axios.post(`${API_BASE_URL}/admin/products`, formData);
+      await axios.post(`${API_BASE_URL}/admin/products`, formData, adminAuthConfig());
       setSuccessMsg('✨ Product pushed to MongoDB live marketplace successfully!');
       setFormData({
         name: '', price: '', commissionRate: '', sku: '',
@@ -97,7 +112,7 @@ export default function AdminPanel() {
         stock: '', highlights: '', image: ''
       });
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed saving document configuration.');
+      reportAdminRequestError(err, 'Failed saving document configuration.');
     }
   };
 
@@ -139,10 +154,10 @@ export default function AdminPanel() {
     setLoadingWithdrawals(true);
     setErrorMsg('');
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/withdrawals?status=${withdrawalFilter}`);
+      const response = await axios.get(`${API_BASE_URL}/admin/withdrawals?status=${withdrawalFilter}`, adminAuthConfig());
       setWithdrawals(response.data);
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed to fetch withdrawal requests');
+      reportAdminRequestError(err, 'Failed to fetch withdrawal requests');
     } finally {
       setLoadingWithdrawals(false);
     }
@@ -154,12 +169,12 @@ export default function AdminPanel() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/approve`);
+      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/approve`, {}, adminAuthConfig());
       setSuccessMsg(`✅ Payment of $${withdrawals.find(w => w._id === withdrawalId)?.amount} approved successfully!`);
       // Remove from list or update status
       setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed to approve withdrawal');
+      reportAdminRequestError(err, 'Failed to approve withdrawal');
     } finally {
       setProcessingId(null);
     }
@@ -171,12 +186,12 @@ export default function AdminPanel() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/reject`);
+      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/reject`, {}, adminAuthConfig());
       setSuccessMsg(`❌ Payment request rejected. Funds returned to affiliate.`);
       // Remove from list or update status
       setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed to reject withdrawal');
+      reportAdminRequestError(err, 'Failed to reject withdrawal');
     } finally {
       setProcessingId(null);
     }
@@ -207,13 +222,13 @@ export default function AdminPanel() {
           <div className="flex flex-col items-center mb-6">
             <div className="p-3 bg-neutral-800 rounded-xl text-amber-400 mb-2"><Shield size={24} /></div>
             <h2 className="text-xl font-bold text-white tracking-tight">System Infrastructure Login</h2>
-            <p className="text-xs text-neutral-500 mt-1">Manual MongoDB Credential Matching Only</p>
+            <p className="text-xs text-neutral-500 mt-1">Sign in with your configured administrator account.</p>
           </div>
           {errorMsg && <div className="p-3.5 bg-red-950 border border-red-900 text-red-400 text-xs rounded-xl mb-4">{errorMsg}</div>}
           <div className="space-y-4">
             <input type="email" placeholder="Admin Email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-sm focus:outline-none focus:border-neutral-700"/>
-            <input type="password" placeholder="Root Password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-sm focus:outline-none focus:border-neutral-700"/>
-            <button type="submit" className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl font-semibold text-sm transition-all">Authenticate Node</button>
+            <input type="password" placeholder="Admin Password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-sm focus:outline-none focus:border-neutral-700"/>
+            <button type="submit" className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl font-semibold text-sm transition-all">Sign in</button>
           </div>
         </form>
       </div>
@@ -272,7 +287,7 @@ export default function AdminPanel() {
             </button>
           </nav>
         </div>
-        <button onClick={() => setIsAdminLoggedIn(false)} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full mt-6"><LogOut size={18} /> Exit Console</button>
+        <button onClick={() => { localStorage.removeItem('adminToken'); setIsAdminLoggedIn(false); }} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full mt-6"><LogOut size={18} /> Exit Console</button>
       </aside>
 
       {/* Drawer Overlay for Mobile Screen Dimming */}

@@ -1,29 +1,69 @@
 import express from 'express';
-import Admin from '../models/Admin.js';
+import jwt from 'jsonwebtoken';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import Product from '../models/Product.js';
 import Withdrawal from '../models/Withdrawal.js';
 import Affiliate from '../models/Affiliate.js';
 
 const router = express.Router();
 
+const securelyMatches = (provided, expected) => {
+  const providedHash = createHash('sha256').update(provided).digest();
+  const expectedHash = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(providedHash, expectedHash);
+};
+
+const requireAdmin = (req, res, next) => {
+  const token = req.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return res.status(401).json({ message: 'Admin authentication required.' });
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required.' });
+    }
+    req.admin = { email: payload.email };
+    return next();
+  } catch {
+    return res.status(401).json({ message: 'Admin session is invalid or expired.' });
+  }
+};
+
 // 🔐 ADMIN LOGIN (Manual Match)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await Admin.findOne({ email });
+    const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const jwtSecret = process.env.JWT_SECRET;
 
-    if (!admin || admin.password !== password) {
+    if (!adminEmail || !adminPassword || !jwtSecret) {
+      return res.status(503).json({ message: 'Admin login is not configured on the server.' });
+    }
+
+    const emailMatches = securelyMatches(String(email || '').trim().toLowerCase(), adminEmail);
+    const passwordMatches = securelyMatches(String(password || ''), adminPassword);
+    if (!emailMatches || !passwordMatches) {
       return res.status(401).json({ message: 'Invalid Admin Credentials' });
     }
 
-    res.json({
+    const token = jwt.sign(
+      { role: 'admin', email: adminEmail },
+      jwtSecret,
+      { expiresIn: '8h' }
+    );
+
+    return res.json({
       message: 'Admin Authentication Success',
-      admin: { name: admin.name, email: admin.email }
+      token,
+      admin: { name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server authentication error', error: error.message });
+    return res.status(500).json({ message: 'Server authentication error' });
   }
 });
+
+router.use(requireAdmin);
 
 // ➕ ADD NEW PRODUCT RECORD
 router.post('/products', async (req, res) => {
