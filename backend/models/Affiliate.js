@@ -26,6 +26,11 @@ const affiliateSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+    totalClicks: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     balance: {
       pendingBalance: {
         type: Number,

@@ -10,3 +10,5 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: SAAS_APP_URL
+        value: https://videoomniverse.onrender.com

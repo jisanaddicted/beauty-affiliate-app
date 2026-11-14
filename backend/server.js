@@ -9,11 +9,13 @@ import affiliateRoutes from './routes/affiliateRoutes.js';
 import orderRoutes from './routes/orderRoutes.js'; 
 import productRoutes from './routes/productRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import trackRoutes from './routes/trackRoutes.js';
 import payoutRoutes from './routes/payouts.js'; // 📥 Imported the payout route module
 
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendDistPath = path.resolve(currentDir, '../frontend/dist');
 
@@ -26,6 +28,7 @@ app.use('/api/affiliates', affiliateRoutes);
 app.use('/api/orders', orderRoutes); 
 app.use('/api/products', productRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/track', trackRoutes);
 app.use('/api/payouts', payoutRoutes); // 🚀 Activated the payouts subsystem layer
 
 const MONGODB_URI = process.env.MONGODB_URI;
