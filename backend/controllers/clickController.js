@@ -42,7 +42,7 @@ export const trackAffiliateClick = async (req, res) => {
   if (requestedCode) {
     try {
       const affiliate = await Affiliate.findOneAndUpdate(
-        { affiliateCode: requestedCode.toUpperCase() },
+        { affiliateCode: requestedCode.toUpperCase(), $or: [{ status: 'approved' }, { status: { $exists: false } }, { status: null }] },
         { $inc: { totalClicks: 1 } },
         { new: true }
       );

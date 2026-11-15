@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Check, Copy, LogOut, Plus, RefreshCw, Save, Shield, Trash2, Wallet } from 'lucide-react';
+import { Check, Copy, LogOut, Plus, RefreshCw, Save, Shield, Trash2, UserCheck, Wallet } from 'lucide-react';
 
 const emptyForm = () => ({
   name: '', slug: '', tagline: '', description: '', logoUrl: '', bannerUrl: '', destinationUrl: '',
@@ -26,6 +26,9 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [affiliateData, setAffiliateData] = useState({ items: [], counts: {}, page: 1, totalPages: 1, total: 0 });
+  const [affiliateStatus, setAffiliateStatus] = useState('pending');
+  const [affiliateSearch, setAffiliateSearch] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -57,6 +60,27 @@ export default function AdminPanel() {
     } catch (requestError) { handleRequestError(requestError); }
   };
 
+  const loadAffiliates = async (status = affiliateStatus, search = affiliateSearch, page = 1) => {
+    try {
+      const response = await axios.get('/api/admin/affiliates', { ...authConfig(), params: { status, search, page, limit: 25 } });
+      setAffiliateData(response.data);
+    } catch (requestError) { handleRequestError(requestError); }
+  };
+
+  const reviewAffiliate = async (affiliate, status) => {
+    const rejectionReason = ['rejected', 'suspended'].includes(status)
+      ? window.prompt(`Optional note for ${status === 'rejected' ? 'rejection' : 'suspension'}:`, affiliate.rejectionReason || '')
+      : '';
+    if (rejectionReason === null) return;
+    setError('');
+    setSuccess('');
+    try {
+      await axios.patch(`/api/admin/affiliates/${affiliate._id}/status`, { status, rejectionReason }, authConfig());
+      setSuccess(`${affiliate.name}'s account is now ${status}.`);
+      await loadAffiliates();
+    } catch (requestError) { handleRequestError(requestError); }
+  };
+
   useEffect(() => {
     setIsAdminLoggedIn(Boolean(localStorage.getItem('adminToken')));
   }, []);
@@ -65,6 +89,7 @@ export default function AdminPanel() {
     if (isAdminLoggedIn) {
       loadProducts();
       loadWithdrawals();
+      loadAffiliates();
     }
   }, [isAdminLoggedIn]);
 
@@ -168,13 +193,19 @@ export default function AdminPanel() {
   return <div className="min-h-screen bg-neutral-100 text-neutral-950 md:flex">
     <aside className="flex w-full flex-col border-b bg-white p-4 md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r md:p-5">
       <div className="mb-6 flex items-center justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">GlowAffiliate</div><h1 className="mt-1 font-bold">SaaS control</h1></div><button onClick={() => { localStorage.removeItem('adminToken'); setIsAdminLoggedIn(false); }} className="rounded-lg p-2 text-red-700 hover:bg-red-50" title="Sign out"><LogOut size={17} /></button></div>
-      <nav className="grid grid-cols-2 gap-2 md:grid-cols-1"><button onClick={() => setActiveTab('products')} className={`rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'products' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}>SaaS products</button><button onClick={() => setActiveTab('withdrawals')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'withdrawals' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}><Wallet size={15} />Payout requests</button></nav>
+      <nav className="grid grid-cols-2 gap-2 md:grid-cols-1"><button onClick={() => setActiveTab('products')} className={`rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'products' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}>SaaS products</button><button onClick={() => { setActiveTab('affiliates'); loadAffiliates(); }} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'affiliates' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}><UserCheck size={15} />Affiliates</button><button onClick={() => setActiveTab('withdrawals')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'withdrawals' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}><Wallet size={15} />Payout requests</button></nav>
       <p className="mt-auto hidden pt-6 text-[10px] text-neutral-400 md:block">Secrets are displayed only in this authenticated admin session.</p>
     </aside>
 
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-7">
-      <header className="mb-6 flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Platform administration</p><h2 className="mt-1 text-2xl font-bold">{activeTab === 'products' ? 'SaaS products' : 'Available-balance payouts'}</h2></div><button onClick={() => { loadProducts(); loadWithdrawals(); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><RefreshCw size={14} />Refresh</button></header>
+      <header className="mb-6 flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Platform administration</p><h2 className="mt-1 text-2xl font-bold">{activeTab === 'products' ? 'SaaS products' : activeTab === 'affiliates' ? 'Affiliate applications' : 'Available-balance payouts'}</h2></div><button onClick={() => { if (activeTab === 'products') loadProducts(); else if (activeTab === 'affiliates') loadAffiliates(); else loadWithdrawals(); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><RefreshCw size={14} />Refresh</button></header>
       {(error || success) && <div role="status" className={`mb-4 rounded-xl p-3 text-sm ${error ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{error || success}</div>}
+
+      {activeTab === 'affiliates' && <section className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{[['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['suspended', 'Suspended'], ['all', 'All']].map(([value, label]) => <button key={value} onClick={() => { setAffiliateStatus(value); loadAffiliates(value, affiliateSearch, 1); }} className={`rounded-xl border p-3 text-left ${affiliateStatus === value ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}><span className="block text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</span><span className="mt-1 block text-xl font-black">{value === 'all' ? Object.values(affiliateData.counts).reduce((sum, count) => sum + count, 0) : affiliateData.counts[value] || 0}</span></button>)}</div>
+        <form onSubmit={(event) => { event.preventDefault(); loadAffiliates(affiliateStatus, affiliateSearch, 1); }} className="flex gap-2 rounded-xl border bg-white p-3"><input value={affiliateSearch} onChange={(event) => setAffiliateSearch(event.target.value)} className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="Search name, email, or referral code" /><button className="rounded-lg bg-neutral-950 px-4 py-2 text-sm font-bold text-white">Search</button></form>
+        <div className="overflow-hidden rounded-xl border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-neutral-50 text-[10px] uppercase tracking-wide text-neutral-500"><tr><th className="px-4 py-3">Affiliate</th><th className="px-4 py-3">Referral code</th><th className="px-4 py-3">Applied</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Review note</th><th className="px-4 py-3">Actions</th></tr></thead><tbody className="divide-y">{affiliateData.items.map((affiliate) => <tr key={affiliate._id}><td className="px-4 py-4"><b>{affiliate.name}</b><span className="mt-1 block text-xs text-neutral-500">{affiliate.email}</span></td><td className="px-4 py-4 font-mono text-xs">{affiliate.affiliateCode}</td><td className="px-4 py-4 text-xs text-neutral-600">{new Date(affiliate.createdAt).toLocaleDateString()}</td><td className="px-4 py-4"><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold capitalize">{affiliate.status}</span>{affiliate.reviewedAt && <span className="mt-1 block text-[10px] text-neutral-400">Reviewed {new Date(affiliate.reviewedAt).toLocaleDateString()}</span>}</td><td className="max-w-56 px-4 py-4 text-xs text-neutral-600">{affiliate.rejectionReason || '—'}</td><td className="px-4 py-4"><div className="flex flex-wrap gap-1">{affiliate.status !== 'approved' && <button onClick={() => reviewAffiliate(affiliate, 'approved')} className="rounded-lg bg-emerald-700 px-2.5 py-2 text-xs font-bold text-white">Approve</button>}{affiliate.status === 'pending' && <button onClick={() => reviewAffiliate(affiliate, 'rejected')} className="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-bold text-red-700">Reject</button>}{affiliate.status === 'approved' && <button onClick={() => reviewAffiliate(affiliate, 'suspended')} className="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-bold text-red-700">Suspend</button>}{affiliate.status !== 'pending' && <button onClick={() => reviewAffiliate(affiliate, 'pending')} className="rounded-lg border px-2.5 py-2 text-xs font-bold">Reset to pending</button>}</div></td></tr>)}{affiliateData.items.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-sm text-neutral-500">No affiliates match this filter.</td></tr>}</tbody></table></div><div className="flex items-center justify-between border-t px-4 py-3 text-xs"><span>{affiliateData.total} affiliate account(s) · Page {affiliateData.page} of {Math.max(1, affiliateData.totalPages)}</span><div className="flex gap-2"><button disabled={affiliateData.page <= 1} onClick={() => loadAffiliates(affiliateStatus, affiliateSearch, affiliateData.page - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Previous</button><button disabled={affiliateData.page >= affiliateData.totalPages} onClick={() => loadAffiliates(affiliateStatus, affiliateSearch, affiliateData.page + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button></div></div></div>
+      </section>}
 
       {activeTab === 'products' && <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <section className="rounded-2xl border bg-white p-5 sm:p-6">

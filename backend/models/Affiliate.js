@@ -26,6 +26,9 @@ const affiliateSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+    status: { type: String, enum: ['pending', 'approved', 'rejected', 'suspended'], default: 'pending', index: true },
+    reviewedAt: { type: Date, default: null },
+    rejectionReason: { type: String, default: null, trim: true, maxlength: 1000 },
     totalClicks: {
       type: Number,
       default: 0,

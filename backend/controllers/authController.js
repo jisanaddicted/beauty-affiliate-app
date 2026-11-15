@@ -55,7 +55,7 @@ export const registerAffiliate = async (req, res) => {
     try {
       await session.withTransaction(async () => {
         await EmailIdentity.create([{ email, role: 'affiliate' }], { session });
-        [newAffiliate] = await Affiliate.create([{ name, email, password: hashedPassword, affiliateCode }], { session });
+        [newAffiliate] = await Affiliate.create([{ name, email, password: hashedPassword, affiliateCode, status: 'pending' }], { session });
       });
     } catch (error) {
       throw error;
@@ -63,23 +63,15 @@ export const registerAffiliate = async (req, res) => {
       await session.endSession();
     }
 
-    // 5. Generate a secure session JWT token
-    const token = jwt.sign(
-      { id: newAffiliate._id, role: 'affiliate' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Session stays valid for 7 days
-    );
-
-    // 6. Respond with profile metrics and token
     return res.status(201).json({
-      token,
+      requiresApproval: true,
+      message: 'Your affiliate application has been submitted and is pending admin approval.',
       affiliate: {
         id: newAffiliate._id,
         name: newAffiliate.name,
         email: newAffiliate.email,
-        affiliateCode: newAffiliate.affiliateCode,
+        status: newAffiliate.status,
         role: 'affiliate',
-        permissions: { canViewOverview: true, canViewAnalytics: true, canCreateSmartlinks: true, canViewOwnSmartlinksOnly: false, canViewEarnings: true, canManageTeam: true, canRequestPayouts: true },
       }
     });
 
@@ -100,10 +92,16 @@ export const loginAffiliate = async (req, res) => {
     const password = String(req.body.password || '');
 
     // 1. Check if the user account exists
-    const affiliate = await Affiliate.findOne({ email });
+    const affiliate = await Affiliate.findOne({ email }).lean();
     if (affiliate) {
       const isMatch = await bcrypt.compare(password, affiliate.password);
       if (!isMatch) return res.status(401).json({ message: 'Invalid email or password.' });
+
+      const status = affiliate.status || 'approved';
+      if (status === 'pending') return res.status(403).json({ code: 'ACCOUNT_PENDING', message: 'Your account is awaiting admin approval.' });
+      if (status === 'rejected') return res.status(403).json({ code: 'ACCOUNT_REJECTED', message: 'Your affiliate application was not approved.', reason: affiliate.rejectionReason || undefined });
+      if (status === 'suspended') return res.status(403).json({ code: 'ACCOUNT_SUSPENDED', message: 'Your affiliate account has been suspended.' });
+      if (status !== 'approved') return res.status(403).json({ message: 'This affiliate account is unavailable.' });
 
       const token = jwt.sign({ id: affiliate._id, role: 'affiliate' }, process.env.JWT_SECRET, { expiresIn: '7d' });
       return res.status(200).json({ token, user: {
@@ -119,8 +117,9 @@ export const loginAffiliate = async (req, res) => {
     if (!member || member.status !== 'active' || !member.passwordHash || !await bcrypt.compare(password, member.passwordHash)) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
-    const manager = await Affiliate.findById(member.managerAffiliateId).select('affiliateCode');
+    const manager = await Affiliate.findById(member.managerAffiliateId).select('affiliateCode status').lean();
     if (!manager) return res.status(401).json({ message: 'This team member account is no longer connected to an affiliate.' });
+    if ((manager.status || 'approved') !== 'approved') return res.status(403).json({ code: 'PARENT_ACCOUNT_UNAVAILABLE', message: 'Your team lead account is not currently approved.' });
 
     const permissions = { ...defaultTeamPermissions, ...(member.permissions?.toObject?.() || {}) };
     const token = jwt.sign(

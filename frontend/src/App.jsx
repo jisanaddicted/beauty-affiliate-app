@@ -17,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [applicationMessage, setApplicationMessage] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,10 +92,18 @@ export default function App() {
     event.preventDefault();
     setLoading(true);
     setErrorMessage('');
+    setApplicationMessage('');
     try {
-      const response = authMode === 'signup'
+      const isSignup = authMode === 'signup';
+      const response = isSignup
         ? await axios.post('/api/auth/register', { name, email, password })
         : await axios.post('/api/auth/login', { email, password });
+      if (response.data.requiresApproval) {
+        setApplicationMessage(response.data.message || 'Your affiliate application is pending admin approval.');
+        setAuthMode('login');
+        setPassword('');
+        return;
+      }
       localStorage.setItem('token', response.data.token);
       await fetchDashboardData(response.data.token);
     } catch (error) {
@@ -142,6 +151,7 @@ export default function App() {
         <section className="flex items-center justify-center p-6 sm:p-12">
           <div className="w-full max-w-sm">
             <div className="mb-7"><p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Affiliate account</p><h2 className="mt-2 text-2xl font-bold">{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h2></div>
+            {applicationMessage && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{applicationMessage}</p>}
             {errorMessage && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
             <form onSubmit={handleAuthSubmit} className="space-y-4">
               {authMode === 'signup' && <label className="block text-xs font-semibold text-neutral-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className="mt-1.5 w-full rounded-xl border border-neutral-200 px-3.5 py-3 text-sm text-neutral-950 outline-none focus:border-neutral-500" placeholder="Your name" /></label>}
@@ -149,7 +159,7 @@ export default function App() {
               <label className="block text-xs font-semibold text-neutral-600">Password<div className="relative mt-1.5"><LockKeyhole size={16} className="absolute left-3 top-3.5 text-neutral-400" /><input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} className="w-full rounded-xl border border-neutral-200 py-3 pl-9 pr-3 text-sm text-neutral-950 outline-none focus:border-neutral-500" placeholder="At least 8 characters" /></div></label>
               <button disabled={loading} className="w-full rounded-xl bg-neutral-950 py-3 text-sm font-bold text-white hover:bg-neutral-800 disabled:opacity-50">{loading ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Create account'}</button>
             </form>
-            <p className="mt-6 text-center text-sm text-neutral-500">{authMode === 'login' ? 'New to the platform?' : 'Already registered?'} <button onClick={() => { setErrorMessage(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="font-bold text-neutral-950 underline underline-offset-2">{authMode === 'login' ? 'Create an account' : 'Sign in'}</button></p>
+            <p className="mt-6 text-center text-sm text-neutral-500">{authMode === 'login' ? 'New to the platform?' : 'Already registered?'} <button onClick={() => { setErrorMessage(''); setApplicationMessage(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="font-bold text-neutral-950 underline underline-offset-2">{authMode === 'login' ? 'Create an account' : 'Sign in'}</button></p>
           </div>
         </section>
       </div>

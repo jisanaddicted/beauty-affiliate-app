@@ -23,7 +23,9 @@ export const requireAuth = async (req, res, next) => {
       if (!member || member.status !== 'active' || String(member.managerAffiliateId) !== String(decoded.managerAffiliateId)) {
         return res.status(401).json({ message: 'Team member account is inactive or no longer exists.' });
       }
-      if (!await Affiliate.exists({ _id: member.managerAffiliateId })) return res.status(401).json({ message: 'Team lead account no longer exists.' });
+      const manager = await Affiliate.findById(member.managerAffiliateId).select('status').lean();
+      if (!manager) return res.status(401).json({ message: 'Team lead account no longer exists.' });
+      if ((manager.status || 'approved') !== 'approved') return res.status(403).json({ code: 'PARENT_ACCOUNT_UNAVAILABLE', message: 'Your team lead account is not currently approved.' });
       const permissions = { ...defaultTeamPermissions, ...Object.fromEntries(Object.entries(member.permissions || {}).filter(([key]) => key !== '_id')) };
       req.user = { ...member, _id: member._id, id: member._id, role: 'team_member', managerAffiliateId: member.managerAffiliateId, permissions };
       return next();
@@ -32,6 +34,15 @@ export const requireAuth = async (req, res, next) => {
 
     const affiliate = await Affiliate.findById(decoded.id).select('-password').lean();
     if (!affiliate) return res.status(401).json({ message: 'Affiliate account no longer exists.' });
+    const status = affiliate.status || 'approved';
+    if (status !== 'approved') {
+      const responses = {
+        pending: { code: 'ACCOUNT_PENDING', message: 'Your account is awaiting admin approval.' },
+        rejected: { code: 'ACCOUNT_REJECTED', message: 'Your affiliate application was not approved.', reason: affiliate.rejectionReason || undefined },
+        suspended: { code: 'ACCOUNT_SUSPENDED', message: 'Your affiliate account has been suspended.' },
+      };
+      return res.status(403).json(responses[status] || { message: 'This affiliate account is unavailable.' });
+    }
     req.user = { ...affiliate, _id: affiliate._id, id: affiliate._id, role: 'affiliate', managerAffiliateId: affiliate._id, permissions: affiliatePermissions };
     return next();
   } catch {

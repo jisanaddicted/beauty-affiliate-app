@@ -26,8 +26,9 @@ const resolveAttribution = async (product, payload, session) => {
   const [affiliateCode, ...suffixParts] = rawCode.split('.');
   const subAffiliateCode = suffixParts.join('.');
   if (!affiliateCode) throw webhookError(400, 'ref_code is required.');
-  const affiliate = await Affiliate.findOne({ affiliateCode }).session(session);
+  const affiliate = await Affiliate.findOne({ affiliateCode }).session(session).lean();
   if (!affiliate) throw webhookError(404, 'Affiliate referral code was not found.');
+  if ((affiliate.status || 'approved') !== 'approved') throw webhookError(403, 'This affiliate account is not approved to receive referrals.');
 
   let teamMember = null;
   if (subAffiliateCode) {
@@ -141,6 +142,8 @@ const handlePurchase = async (product, payload) => {
 
       const referral = await Referral.findOne({ saasProductId: product._id, referredUserId }).session(session);
       if (!referral) throw webhookError(404, 'No signup referral exists for this referred user.');
+      const affiliate = await Affiliate.findById(referral.affiliateId).select('status').session(session).lean();
+      if (!affiliate || (affiliate.status || 'approved') !== 'approved') throw webhookError(403, 'This affiliate account is not approved to receive commissions.');
 
       const now = new Date();
       const unlocksAt = commissionUnlockTime(product.holdingPeriodDays || 0, now);

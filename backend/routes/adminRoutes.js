@@ -38,6 +38,58 @@ router.post('/login', async (req, res) => {
 
 router.use(protectAdmin);
 
+router.get('/affiliates', async (req, res) => {
+  try {
+    const allowedStatuses = ['pending', 'approved', 'rejected', 'suspended', 'all'];
+    const status = String(req.query.status || 'pending').toLowerCase();
+    if (!allowedStatuses.includes(status)) return res.status(400).json({ message: 'Invalid affiliate status filter.' });
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+    const query = String(req.query.search || '').trim().slice(0, 100);
+    const filters = [];
+    if (status === 'approved') filters.push({ $or: [{ status: 'approved' }, { status: { $exists: false } }, { status: null }] });
+    else if (status !== 'all') filters.push({ status });
+    if (query) {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filters.push({ $or: ['name', 'email', 'affiliateCode'].map((field) => ({ [field]: { $regex: escaped, $options: 'i' } })) });
+    }
+    const filter = filters.length ? { $and: filters } : {};
+    const [items, total, groupedCounts] = await Promise.all([
+      Affiliate.find(filter).select('name email affiliateCode status reviewedAt rejectionReason createdAt').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Affiliate.countDocuments(filter),
+      Affiliate.aggregate([{ $group: { _id: { $ifNull: ['$status', 'approved'] }, count: { $sum: 1 } } }]),
+    ]);
+    const counts = { pending: 0, approved: 0, rejected: 0, suspended: 0 };
+    for (const item of groupedCounts) if (Object.hasOwn(counts, item._id)) counts[item._id] = item.count;
+    return res.json({ items: items.map((item) => ({ ...item, status: item.status || 'approved' })), counts, page, limit, total, totalPages: Math.ceil(total / limit) });
+  } catch (error) {
+    console.error('Admin affiliate list error:', error.message);
+    return res.status(500).json({ message: 'Failed to load affiliate applications.' });
+  }
+});
+
+router.patch('/affiliates/:id/status', async (req, res) => {
+  const { status } = req.body || {};
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid affiliate ID.' });
+  if (!['pending', 'approved', 'rejected', 'suspended'].includes(status)) return res.status(400).json({ message: 'Status must be pending, approved, rejected, or suspended.' });
+  const rejectionReason = String(req.body?.rejectionReason || '').trim();
+  if (rejectionReason.length > 1000) return res.status(400).json({ message: 'The review note must be 1000 characters or fewer.' });
+  try {
+    const affiliate = await Affiliate.findByIdAndUpdate(req.params.id, {
+      $set: {
+        status,
+        reviewedAt: status === 'pending' ? null : new Date(),
+        rejectionReason: ['rejected', 'suspended'].includes(status) && rejectionReason ? rejectionReason : null,
+      },
+    }, { new: true, runValidators: true }).select('name email affiliateCode status reviewedAt rejectionReason createdAt').lean();
+    if (!affiliate) return res.status(404).json({ message: 'Affiliate account not found.' });
+    return res.json({ affiliate });
+  } catch (error) {
+    console.error('Admin affiliate status update error:', error.message);
+    return res.status(500).json({ message: 'Failed to update affiliate status.' });
+  }
+});
+
 router.get('/saas-products', async (_req, res) => {
   try {
     const products = await SaasProduct.find({}).select('+webhookSecret').sort({ createdAt: -1 });

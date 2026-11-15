@@ -130,8 +130,15 @@ export const redirectSmartLink = async (req, res) => {
     const product = link?.saasProductId;
     const member = link?.assignedTeamMemberId?.status === 'active' ? link.assignedTeamMemberId : null;
     if (!link || !product || product.status !== 'active') return res.status(404).send('Smartlink not found or inactive.');
-    const affiliate = await Affiliate.findById(link.affiliateId).select('affiliateCode');
+    const affiliate = await Affiliate.findById(link.affiliateId).select('affiliateCode status').lean();
     if (!affiliate) return res.status(404).send('Smartlink not found.');
+    if ((affiliate.status || 'approved') !== 'approved') {
+      const fallback = new URL(link.destinationUrl || product.destinationUrl);
+      fallback.searchParams.delete(product.refParamKey || 'ref');
+      fallback.searchParams.delete('ref');
+      fallback.searchParams.delete('sl');
+      return res.redirect(302, fallback.toString());
+    }
     const refCode = member ? `${affiliate.affiliateCode}.${member.subAffiliateCode}` : affiliate.affiliateCode;
     const destination = new URL(link.destinationUrl || product.destinationUrl);
     destination.searchParams.set(product.refParamKey || 'ref', refCode);
