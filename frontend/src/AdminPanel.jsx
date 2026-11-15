@@ -228,6 +228,7 @@ function WebhookDetails({ product, copied, onCopy, onRotate }) {
     <div className="mb-3"><h4 className="text-sm font-bold">Webhook connection details</h4><p className="mt-1 text-[11px] text-neutral-600">Keep the secret on your SaaS server. Never expose it in browser code.</p></div>
     <CopyField label="Webhook endpoint" value={webhookUrl} copied={copied === `url-${product._id}`} onCopy={() => onCopy(`url-${product._id}`, webhookUrl)} />
     <CopyField label="Webhook secret" value={product.webhookSecret || ''} copied={copied === `secret-${product._id}`} onCopy={() => onCopy(`secret-${product._id}`, product.webhookSecret || '')} />
+    <p className="mt-3 text-[11px] leading-5 text-neutral-600">For smartlink attribution, preserve the redirect's <code>sl</code> query value and send it as <code>smartlink_code</code> with the signup webhook. Pass the full <code>ref_code</code> value through unchanged; team links use <code>AFFILIATECODE.TEAMCODE</code>.</p>
     <button onClick={() => onRotate(product)} className="mt-3 text-[11px] font-bold text-red-700 underline">Rotate webhook secret</button>
   </section>;
 }

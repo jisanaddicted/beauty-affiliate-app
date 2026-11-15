@@ -10,6 +10,7 @@ import saasProductRoutes from './routes/saasProductRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import trackRoutes from './routes/trackRoutes.js';
+import { redirectSmartLink } from './controllers/smartLinkController.js';
 import payoutRoutes from './routes/payouts.js'; // 📥 Imported the payout route module
 
 dotenv.config();
@@ -55,6 +56,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve the Vite production build from this same Render web service.
+app.get('/s/:code', redirectSmartLink);
 app.use(express.static(frontendDistPath));
 
 // Support client-side routes such as /admin and /product/:id.

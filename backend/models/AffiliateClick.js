@@ -14,6 +14,8 @@ const affiliateClickSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    smartLinkId: { type: mongoose.Schema.Types.ObjectId, ref: 'SmartLink', default: null, index: true },
+    teamMemberId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null, index: true },
     ipAddress: { type: String, default: '' },
     userAgent: { type: String, default: '' },
     referer: { type: String, default: '' },

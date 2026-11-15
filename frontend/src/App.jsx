@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, ArrowUpRight, LayoutDashboard, LogOut, LockKeyhole, Mail, Store, Wallet } from 'lucide-react';
+import { Activity, ArrowUpRight, LayoutDashboard, Link2, LogOut, LockKeyhole, Mail, Store, Users, Wallet } from 'lucide-react';
 import MarketplaceTab from './MarketplaceTab.jsx';
 import PayoutsTab from './PayoutsTab.jsx';
 import AnalyticsTab from './AnalyticsTab.jsx';
+import SmartlinksTab from './SmartlinksTab.jsx';
+import TeamTab from './TeamTab.jsx';
 
 const emptySummary = { lockedBalance: 0, pendingClearance: 0, availableBalance: 0, totalPaid: 0, totalEarned: 0 };
 
@@ -17,6 +19,10 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [products, setProducts] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState('');
+  const [defaultTeamMemberId, setDefaultTeamMemberId] = useState('');
   const [affiliate, setAffiliate] = useState({ name: '', email: '', affiliateCode: '', totalClicks: 0 });
   const [summary, setSummary] = useState(emptySummary);
 
@@ -53,6 +59,19 @@ export default function App() {
     }
   }, []);
 
+  const fetchTeamMembers = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setTeamLoading(true);
+    try {
+      const response = await axios.get('/api/affiliates/team', { headers: { Authorization: `Bearer ${token}` } });
+      setTeamMembers(response.data.items || []);
+      setTeamError('');
+    } catch (error) {
+      setTeamError(error.response?.data?.message || 'Could not load your team.');
+    } finally { setTeamLoading(false); }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) fetchDashboardData(token);
@@ -61,8 +80,9 @@ export default function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     if (activeTab === 'dashboard' || activeTab === 'payouts') fetchSummary();
-    if (activeTab === 'marketplace') fetchProducts();
-  }, [isLoggedIn, activeTab, fetchProducts, fetchSummary]);
+    if (activeTab === 'marketplace' || activeTab === 'smartlinks') fetchProducts();
+    if (activeTab === 'smartlinks' || activeTab === 'team') fetchTeamMembers();
+  }, [isLoggedIn, activeTab, fetchProducts, fetchSummary, fetchTeamMembers]);
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -117,6 +137,8 @@ export default function App() {
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'marketplace', label: 'SaaS marketplace', icon: Store },
     { id: 'analytics', label: 'SaaS analytics', icon: Activity },
+    { id: 'smartlinks', label: 'Smartlinks', icon: Link2 },
+    { id: 'team', label: 'My team', icon: Users },
     { id: 'payouts', label: 'Payouts', icon: Wallet },
   ];
 
@@ -150,6 +172,8 @@ export default function App() {
       </>}
       {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
       {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} />}
+      {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} products={products} teamMembers={teamMembers} defaultTeamMemberId={defaultTeamMemberId} onClearDefault={() => setDefaultTeamMemberId('')} />}
+      {activeTab === 'team' && <TeamTab token={localStorage.getItem('token')} members={teamMembers} loading={teamLoading} error={teamError} onRefresh={fetchTeamMembers} onCreateSmartlink={(memberId) => { setDefaultTeamMemberId(memberId); setActiveTab('smartlinks'); }} />}
       {activeTab === 'payouts' && <PayoutsTab summary={summary} onSummaryUpdate={setSummary} />}
     </main>
   </div>;

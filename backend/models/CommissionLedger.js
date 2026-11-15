@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const commissionLedgerSchema = new mongoose.Schema({
   affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'Affiliate', required: true, index: true },
   saasProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'SaasProduct', required: true, index: true },
+  teamMemberId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null, index: true },
   referralId: { type: mongoose.Schema.Types.ObjectId, ref: 'Referral', required: true, index: true },
   referredUserId: { type: String, required: true, trim: true, index: true },
   type: { type: String, enum: ['signup_bounty', 'plan_purchase'], required: true },
