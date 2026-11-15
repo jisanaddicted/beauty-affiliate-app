@@ -6,6 +6,7 @@ const WithdrawalSchema = new mongoose.Schema({
     ref: 'Affiliate',
     required: true
   },
+  requestedByTeamMemberId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null, index: true },
   amount: {
     type: mongoose.Schema.Types.Decimal128,
     required: true,

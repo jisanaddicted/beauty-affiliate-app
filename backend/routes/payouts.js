@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, requirePermission } from '../middleware/authMiddleware.js';
 import Affiliate from '../models/Affiliate.js';
 import CommissionLedger from '../models/CommissionLedger.js';
 import Withdrawal from '../models/Withdrawal.js';
@@ -9,35 +9,38 @@ import { serializeWithdrawal } from '../utils/serializers.js';
 
 const router = express.Router();
 
-router.post('/withdraw', protect, async (req, res) => {
+router.post('/withdraw', protect, requirePermission('canRequestPayouts'), requirePermission('canViewEarnings'), async (req, res) => {
   const amount = Number(req.body.amount);
   if (!Number.isFinite(amount) || amount < 10) {
     return res.status(400).json({ message: 'Minimum withdrawal request amount is 10.' });
   }
 
   const roundedAmount = Math.round((amount + Number.EPSILON) * 100) / 100;
+  const managerAffiliateId = req.user.managerAffiliateId || req.user._id;
+  const teamMemberId = req.user.role === 'team_member' ? req.user._id : null;
+  const memberFilter = teamMemberId ? { teamMemberId } : {};
   const session = await mongoose.startSession();
   try {
     let result;
     await session.withTransaction(async () => {
       const affiliate = await Affiliate.findByIdAndUpdate(
-        req.user._id,
+        managerAffiliateId,
         { $inc: { payoutLockVersion: 1 } },
         { new: true, session }
       );
       if (!affiliate) throw Object.assign(new Error('Affiliate account not found.'), { status: 404 });
 
       await processMaturedCommissions(session);
-      const summary = await getAffiliateCommissionSummary(affiliate._id, session);
+      const summary = await getAffiliateCommissionSummary(affiliate._id, session, { teamMemberId });
       if (roundedAmount > summary.availableBalance + 0.000001) {
         throw Object.assign(new Error('Requested amount exceeds the available commission balance.'), { status: 400 });
       }
 
-      const pendingWithdrawals = await Withdrawal.find({ affiliateId: affiliate._id, status: 'Pending' })
+      const pendingWithdrawals = await Withdrawal.find({ affiliateId: affiliate._id, status: { $in: ['Pending', 'Approved'] } })
         .select('commissionLedgerIds')
         .session(session);
       const reservedIds = new Set(pendingWithdrawals.flatMap((withdrawal) => withdrawal.commissionLedgerIds.map(String)));
-      const availableEntries = await CommissionLedger.find({ affiliateId: affiliate._id, status: 'available' })
+      const availableEntries = await CommissionLedger.find({ affiliateId: affiliate._id, status: 'available', ...memberFilter })
         .sort({ createdAt: 1 })
         .session(session);
 
@@ -62,6 +65,7 @@ router.post('/withdraw', protect, async (req, res) => {
         const [splitEntry] = await CommissionLedger.create([{
           affiliateId: entry.affiliateId,
           saasProductId: entry.saasProductId,
+          teamMemberId: entry.teamMemberId || null,
           referralId: entry.referralId,
           referredUserId: entry.referredUserId,
           type: entry.type,
@@ -83,6 +87,7 @@ router.post('/withdraw', protect, async (req, res) => {
       const [withdrawal] = await Withdrawal.create([{
         _id: withdrawalId,
         affiliateId: affiliate._id,
+        requestedByTeamMemberId: teamMemberId,
         commissionLedgerIds,
         amount: decimalFrom(roundedAmount),
         method: req.body.method,
@@ -93,7 +98,7 @@ router.post('/withdraw', protect, async (req, res) => {
       result = {
         message: 'Withdrawal request submitted successfully.',
         withdrawal: serializeWithdrawal(withdrawal),
-        summary: await getAffiliateCommissionSummary(affiliate._id, session),
+        summary: await getAffiliateCommissionSummary(affiliate._id, session, { teamMemberId }),
       };
     });
 
@@ -108,9 +113,11 @@ router.post('/withdraw', protect, async (req, res) => {
   }
 });
 
-router.get('/history', protect, async (req, res) => {
+router.get('/history', protect, requirePermission('canRequestPayouts'), requirePermission('canViewEarnings'), async (req, res) => {
   try {
-    const logs = await Withdrawal.find({ affiliateId: req.user._id }).sort({ createdAt: -1 });
+    const filter = { affiliateId: req.user.managerAffiliateId || req.user._id };
+    if (req.user.role === 'team_member') filter.requestedByTeamMemberId = req.user._id;
+    const logs = await Withdrawal.find(filter).sort({ createdAt: -1 });
     return res.json(logs.map(serializeWithdrawal));
   } catch (error) {
     return res.status(500).json({ message: 'Failed to retrieve withdrawal history.' });

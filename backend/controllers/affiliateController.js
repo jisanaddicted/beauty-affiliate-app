@@ -1,15 +1,33 @@
 import Referral from '../models/Referral.js';
 import CommissionLedger from '../models/CommissionLedger.js';
 import { getAffiliateCommissionSummary, processMaturedCommissions } from '../services/commissionService.js';
+import Affiliate from '../models/Affiliate.js';
+import AffiliateClick from '../models/AffiliateClick.js';
 
 export const getAffiliateDashboard = async (req, res) => {
   try {
+    const managerAffiliateId = req.user.managerAffiliateId || req.user._id;
+    const isTeamMember = req.user.role === 'team_member';
+    const manager = isTeamMember ? await Affiliate.findById(managerAffiliateId).select('affiliateCode').lean() : null;
+    const stats = isTeamMember && req.user.permissions?.canViewOverview !== false ? await Promise.all([
+      AffiliateClick.countDocuments({ affiliateId: managerAffiliateId, teamMemberId: req.user._id }),
+      Referral.aggregate([
+        { $match: { affiliateId: managerAffiliateId, teamMemberId: req.user._id } },
+        { $group: { _id: null, signups: { $sum: 1 }, conversions: { $sum: { $cond: [{ $eq: ['$status', 'converted'] }, 1, 0] } } } },
+      ]),
+    ]) : null;
+    const referralStats = stats?.[1]?.[0] || { signups: 0, conversions: 0 };
     return res.json({
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
-      affiliateCode: req.user.affiliateCode,
-      totalClicks: req.user.totalClicks || 0,
+      affiliateCode: isTeamMember ? manager?.affiliateCode : req.user.affiliateCode,
+      totalClicks: isTeamMember ? (stats?.[0] || 0) : req.user.totalClicks || 0,
+      subAffiliateCode: isTeamMember ? req.user.subAffiliateCode : undefined,
+      stats: req.user.permissions?.canViewOverview === false ? { signups: 0, conversions: 0 } : { signups: referralStats.signups, conversions: referralStats.conversions },
+      role: req.user.role,
+      managerAffiliateId: req.user.managerAffiliateId,
+      permissions: req.user.permissions,
       createdAt: req.user.createdAt,
     });
   } catch (error) {
@@ -19,7 +37,7 @@ export const getAffiliateDashboard = async (req, res) => {
 
 export const getAffiliateSummary = async (req, res) => {
   try {
-    const summary = await getAffiliateCommissionSummary(req.user._id);
+    const summary = await getAffiliateCommissionSummary(req.user.managerAffiliateId || req.user._id, null, { teamMemberId: req.user.role === 'team_member' ? req.user._id : undefined });
     return res.json(summary);
   } catch (error) {
     console.error('Affiliate summary error:', error.message);
@@ -37,7 +55,9 @@ export const getAffiliateActivity = async (req, res) => {
     await processMaturedCommissions();
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
-    const filter = { affiliateId: req.user._id };
+    const affiliateId = req.user.managerAffiliateId || req.user._id;
+    const scope = req.user.role === 'team_member' && req.user.permissions?.canViewOwnSmartlinksOnly ? { teamMemberId: req.user._id } : {};
+    const filter = { affiliateId, ...scope };
 
     const [referrals, total] = await Promise.all([
       Referral.find(filter)
@@ -50,7 +70,7 @@ export const getAffiliateActivity = async (req, res) => {
 
     const referralIds = referrals.map((referral) => referral._id);
     const commissions = referralIds.length
-      ? await CommissionLedger.find({ affiliateId: req.user._id, referralId: { $in: referralIds } }).sort({ createdAt: 1 })
+      ? await CommissionLedger.find({ affiliateId, ...scope, referralId: { $in: referralIds } }).sort({ createdAt: 1 })
       : [];
     const commissionMap = new Map();
     for (const commission of commissions) {
@@ -78,7 +98,7 @@ export const getAffiliateActivity = async (req, res) => {
         referredUserId: maskUserId(referral.referredUserId),
         saasProduct: referral.saasProductId?.name || 'SaaS product',
         status,
-        earnedAmount: Math.round((earnedAmount + Number.EPSILON) * 100) / 100,
+        earnedAmount: req.user.permissions?.canViewEarnings === false ? 0 : Math.round((earnedAmount + Number.EPSILON) * 100) / 100,
         createdAt: referral.createdAt,
         unlocksAt,
       };

@@ -14,19 +14,30 @@ const createUniqueSmartCode = async () => {
   return code;
 };
 const isObjectId = (value) => mongoose.isValidObjectId(value);
+const ownerId = (user) => user.managerAffiliateId || user._id;
+const ownSmartlinksOnly = (user) => user.role === 'team_member' && user.permissions?.canViewOwnSmartlinksOnly === true;
+const sanitizeSmartLink = (item, user) => {
+  const result = item?.toObject ? item.toObject() : { ...item };
+  if (user.permissions?.canViewEarnings === false && result.stats) result.stats.revenue = '0';
+  return result;
+};
 
 export const listSmartLinks = async (req, res) => {
   try {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
-    const filter = { affiliateId: req.user._id };
+    if (req.user.role === 'team_member' && !req.user.permissions?.canViewOverview && !req.user.permissions?.canCreateSmartlinks) {
+      return res.status(403).json({ message: 'You do not have permission to view smartlinks.' });
+    }
+    const filter = { affiliateId: ownerId(req.user) };
+    if (ownSmartlinksOnly(req.user)) filter.assignedTeamMemberId = req.user._id;
     const search = String(req.query.search || '').trim().slice(0, 100);
     if (search) filter.name = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
     const [items, total] = await Promise.all([
       SmartLink.find(filter).populate('saasProductId', 'name slug').populate('assignedTeamMemberId', 'name email subAffiliateCode status').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       SmartLink.countDocuments(filter),
     ]);
-    return res.json({ items, page, limit, total, totalPages: Math.ceil(total / limit) });
+    return res.json({ items: items.map((item) => sanitizeSmartLink(item, req.user)), page, limit, total, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     console.error('Smartlink list error:', error.message);
     return res.status(500).json({ message: 'Failed to load smartlinks.' });
@@ -41,16 +52,18 @@ export const createSmartLink = async (req, res) => {
     if (!isObjectId(saasProductId)) throw badRequest('A valid SaaS product is required.');
     const product = await SaasProduct.findOne({ _id: saasProductId, status: 'active' }).select('destinationUrl');
     if (!product) throw badRequest('Select an active SaaS product.');
-    let assignedTeamMemberId = null;
+    const managerAffiliateId = ownerId(req.user);
+    let assignedTeamMemberId = req.user.role === 'team_member' && ownSmartlinksOnly(req.user) ? req.user._id : null;
     if (req.body.teamMemberId) {
       if (!isObjectId(req.body.teamMemberId)) throw badRequest('Invalid team member.');
-      const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId: req.user._id, status: 'active' });
+      if (req.user.role === 'team_member' && ownSmartlinksOnly(req.user) && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('You can only assign smartlinks to yourself.');
+      const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId, status: 'active' });
       if (!member) throw badRequest('Select an active team member from your team.');
       assignedTeamMemberId = member._id;
     }
-    const item = await SmartLink.create({ affiliateId: req.user._id, name, code: await createUniqueSmartCode(), saasProductId, assignedTeamMemberId });
+    const item = await SmartLink.create({ affiliateId: managerAffiliateId, name, code: await createUniqueSmartCode(), saasProductId, assignedTeamMemberId });
     await item.populate([{ path: 'saasProductId', select: 'name slug' }, { path: 'assignedTeamMemberId', select: 'name email subAffiliateCode status' }]);
-    return res.status(201).json(item);
+    return res.status(201).json(sanitizeSmartLink(item, req.user));
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ message: error.message });
     if (error.code === 11000) return res.status(409).json({ message: 'Please retry; a generated code conflicted.' });
@@ -62,7 +75,9 @@ export const createSmartLink = async (req, res) => {
 export const updateSmartLink = async (req, res) => {
   try {
     if (!isObjectId(req.params.id)) throw badRequest('Invalid smartlink ID.');
-    const link = await SmartLink.findOne({ _id: req.params.id, affiliateId: req.user._id });
+    const filter = { _id: req.params.id, affiliateId: ownerId(req.user) };
+    if (ownSmartlinksOnly(req.user)) filter.assignedTeamMemberId = req.user._id;
+    const link = await SmartLink.findOne(filter);
     if (!link) return res.status(404).json({ message: 'Smartlink not found.' });
     if (req.body.name !== undefined) {
       const name = String(req.body.name).trim();
@@ -81,17 +96,19 @@ export const updateSmartLink = async (req, res) => {
       link.destinationUrl = destinationUrl;
     }
     if (req.body.teamMemberId !== undefined) {
+      if (!req.body.teamMemberId && ownSmartlinksOnly(req.user)) throw badRequest('You cannot remove your team assignment from this smartlink.');
       if (!req.body.teamMemberId) link.assignedTeamMemberId = null;
       else {
         if (!isObjectId(req.body.teamMemberId)) throw badRequest('Invalid team member.');
-        const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId: req.user._id, status: 'active' });
+        if (req.user.role === 'team_member' && ownSmartlinksOnly(req.user) && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('You can only assign smartlinks to yourself.');
+        const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId: ownerId(req.user), status: 'active' });
         if (!member) throw badRequest('Select an active team member from your team.');
         link.assignedTeamMemberId = member._id;
       }
     }
     await link.save();
     await link.populate([{ path: 'saasProductId', select: 'name slug' }, { path: 'assignedTeamMemberId', select: 'name email subAffiliateCode status' }]);
-    return res.json(link);
+    return res.json(sanitizeSmartLink(link, req.user));
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ message: error.message });
     console.error('Smartlink update error:', error.message);
@@ -102,7 +119,9 @@ export const updateSmartLink = async (req, res) => {
 export const deleteSmartLink = async (req, res) => {
   try {
     if (!isObjectId(req.params.id)) throw badRequest('Invalid smartlink ID.');
-    const result = await SmartLink.deleteOne({ _id: req.params.id, affiliateId: req.user._id });
+    const filter = { _id: req.params.id, affiliateId: ownerId(req.user) };
+    if (ownSmartlinksOnly(req.user)) filter.assignedTeamMemberId = req.user._id;
+    const result = await SmartLink.deleteOne(filter);
     return result.deletedCount ? res.status(204).end() : res.status(404).json({ message: 'Smartlink not found.' });
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ message: error.message });

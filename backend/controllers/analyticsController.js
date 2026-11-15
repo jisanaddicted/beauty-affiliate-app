@@ -65,9 +65,9 @@ const referralStatusStages = (status) => status === 'all' ? [] : [
   { $match: { 'matchingCommissions.status': status } },
 ];
 
-const activityPipeline = (affiliateId, filters, { page, limit, facet = false } = {}) => {
+const activityPipeline = (affiliateId, filters, { page, limit, facet = false } = {}, scope = {}) => {
   const pipeline = [
-    { $match: { affiliateId, ...dateRange('createdAt', filters), ...productMatch(filters), ...ledgerStatusMatch(filters) } },
+    { $match: { affiliateId, ...scope, ...dateRange('createdAt', filters), ...productMatch(filters), ...ledgerStatusMatch(filters) } },
     { $sort: { [filters.sortBy]: filters.sortOrder, _id: filters.sortOrder } },
   ];
   const rowStages = [
@@ -128,10 +128,14 @@ const mergeSeries = (periods, rows, property) => {
 export const getAffiliateAnalytics = async (req, res) => {
   try {
     const filters = parseFilters(req.query);
-    const affiliateId = new mongoose.Types.ObjectId(req.user._id);
-    const clickMatch = { affiliateId, ...dateRange('timestamp', filters), ...productMatch(filters) };
-    const referralMatch = { affiliateId, ...dateRange('createdAt', filters), ...productMatch(filters) };
-    const commissionMatch = { affiliateId, ...dateRange('createdAt', filters), ...productMatch(filters), ...ledgerStatusMatch(filters) };
+    const affiliateId = new mongoose.Types.ObjectId(req.user.managerAffiliateId || req.user._id);
+    const scopedToMember = req.user.role === 'team_member' && req.user.permissions?.canViewOwnSmartlinksOnly === true;
+    const clickScope = scopedToMember ? { teamMemberId: new mongoose.Types.ObjectId(req.user._id) } : {};
+    const referralScope = scopedToMember ? { teamMemberId: new mongoose.Types.ObjectId(req.user._id) } : {};
+    const ledgerScope = scopedToMember ? { teamMemberId: new mongoose.Types.ObjectId(req.user._id) } : {};
+    const clickMatch = { affiliateId, ...clickScope, ...dateRange('timestamp', filters), ...productMatch(filters) };
+    const referralMatch = { affiliateId, ...referralScope, ...dateRange('createdAt', filters), ...productMatch(filters) };
+    const commissionMatch = { affiliateId, ...ledgerScope, ...dateRange('createdAt', filters), ...productMatch(filters), ...ledgerStatusMatch(filters) };
     const bucket = dateBucket('$createdAt', filters.interval);
     const clickBucket = dateBucket('$timestamp', filters.interval);
 
@@ -167,10 +171,10 @@ export const getAffiliateAnalytics = async (req, res) => {
         { $match: commissionMatch },
         { $group: { _id: bucket, value: { $sum: { $toDouble: '$amount' } } } },
       ]),
-      CommissionLedger.aggregate(activityPipeline(affiliateId, filters, { page: filters.page, limit: filters.limit, facet: true })),
-      AffiliateClick.distinct('saasProductId', { affiliateId }),
-      Referral.distinct('saasProductId', { affiliateId }),
-      CommissionLedger.distinct('saasProductId', { affiliateId }),
+      CommissionLedger.aggregate(activityPipeline(affiliateId, filters, { page: filters.page, limit: filters.limit, facet: true }, ledgerScope)),
+      AffiliateClick.distinct('saasProductId', { affiliateId, ...clickScope }),
+      Referral.distinct('saasProductId', { affiliateId, ...referralScope }),
+      CommissionLedger.distinct('saasProductId', { affiliateId, ...ledgerScope }),
     ]);
 
     const conversionResult = conversionStats[0] || { total: [], series: [] };
@@ -208,12 +212,12 @@ export const getAffiliateAnalytics = async (req, res) => {
         totalSignups,
         totalConversions,
         conversionRate: totalSignups ? Math.round((totalConversions / totalSignups) * 10000) / 100 : 0,
-        totalEarnings: Math.round((Number(earningStats[0]?.total || 0) + Number.EPSILON) * 100) / 100,
+      totalEarnings: req.user.permissions?.canViewEarnings === false ? 0 : Math.round((Number(earningStats[0]?.total || 0) + Number.EPSILON) * 100) / 100,
       },
-      series,
+      series: req.user.permissions?.canViewEarnings === false ? series.map((period) => ({ ...period, earnings: 0 })) : series,
       products,
       activity: {
-        items: activityPage.items || [],
+        items: (activityPage.items || []).map((item) => req.user.permissions?.canViewEarnings === false ? { ...item, amount: 0 } : item),
         page: filters.page,
         limit: filters.limit,
         total: activityTotal,
@@ -232,15 +236,18 @@ const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 export const exportAffiliateAnalyticsCsv = async (req, res) => {
   try {
     const filters = parseFilters(req.query);
-    const affiliateId = new mongoose.Types.ObjectId(req.user._id);
-    const rows = await CommissionLedger.aggregate(activityPipeline(affiliateId, filters, { facet: false })).allowDiskUse(true);
+    const affiliateId = new mongoose.Types.ObjectId(req.user.managerAffiliateId || req.user._id);
+    const scope = req.user.role === 'team_member' && req.user.permissions?.canViewOwnSmartlinksOnly === true
+      ? { teamMemberId: new mongoose.Types.ObjectId(req.user._id) }
+      : {};
+    const rows = await CommissionLedger.aggregate(activityPipeline(affiliateId, filters, { facet: false }, scope)).allowDiskUse(true);
     const header = ['Referred User ID', 'SaaS Product', 'Event Type', 'Status', 'Amount', 'Timestamp', 'Unlocks At'];
     const csvRows = rows.map((row) => [
       row.referredUserId,
       row.saasProduct,
       row.type,
       row.status,
-      Number(row.amount).toFixed(2),
+      req.user.permissions?.canViewEarnings === false ? '' : Number(row.amount).toFixed(2),
       row.timestamp?.toISOString?.() || '',
       row.unlocksAt?.toISOString?.() || '',
     ]);

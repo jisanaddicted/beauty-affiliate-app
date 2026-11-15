@@ -1,52 +1,57 @@
 import jwt from 'jsonwebtoken';
 import Affiliate from '../models/Affiliate.js';
+import TeamMember, { defaultTeamPermissions } from '../models/TeamMember.js';
 
-/**
- * @desc    Middleware to protect routes and verify the affiliate's JWT token
- */
-export const protect = async (req, res, next) => {
-  let token;
+const affiliatePermissions = Object.freeze({
+  canViewOverview: true,
+  canViewAnalytics: true,
+  canCreateSmartlinks: true,
+  canViewOwnSmartlinksOnly: false,
+  canViewEarnings: true,
+  canManageTeam: true,
+  canRequestPayouts: true,
+});
 
-  // 1. Check if the Authorization header exists and starts with "Bearer"
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // Extract the raw token string from the header (splits "Bearer <token>" into an array)
-      token = req.headers.authorization.split(' ')[1];
+export const requireAuth = async (req, res, next) => {
+  const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return res.status(401).json({ message: 'Not authorized, no token provided.' });
 
-      // 2. Decode and verify the token signature using your JWT_SECRET
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // 3. Fetch the affiliate from the database using the ID from the token
-      // .select('-password') ensures we do NOT attach the hashed password to the request object
-      req.user = await Affiliate.findById(decoded.id).select('-password');
-
-      if (!req.user) {
-        return res.status(401).json({ message: 'Affiliate account no longer exists.' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role === 'team_member') {
+      const member = await TeamMember.findById(decoded.id).select('-passwordHash').lean();
+      if (!member || member.status !== 'active' || String(member.managerAffiliateId) !== String(decoded.managerAffiliateId)) {
+        return res.status(401).json({ message: 'Team member account is inactive or no longer exists.' });
       }
-
-      // 4. Move to the next middleware or controller function down the line
+      if (!await Affiliate.exists({ _id: member.managerAffiliateId })) return res.status(401).json({ message: 'Team lead account no longer exists.' });
+      const permissions = { ...defaultTeamPermissions, ...Object.fromEntries(Object.entries(member.permissions || {}).filter(([key]) => key !== '_id')) };
+      req.user = { ...member, _id: member._id, id: member._id, role: 'team_member', managerAffiliateId: member.managerAffiliateId, permissions };
       return next();
-
-    } catch (error) {
-      return res.status(401).json({ message: 'Not authorized, token validation failed.' });
     }
-  }
+    if (decoded.role && decoded.role !== 'affiliate') return res.status(403).json({ message: 'This account role cannot access the affiliate dashboard.' });
 
-  // If no token was found at all in the headers
-  if (!token) {
-    return res.status(401).json({ message: 'Not authorized, no token provided.' });
+    const affiliate = await Affiliate.findById(decoded.id).select('-password').lean();
+    if (!affiliate) return res.status(401).json({ message: 'Affiliate account no longer exists.' });
+    req.user = { ...affiliate, _id: affiliate._id, id: affiliate._id, role: 'affiliate', managerAffiliateId: affiliate._id, permissions: affiliatePermissions };
+    return next();
+  } catch {
+    return res.status(401).json({ message: 'Not authorized, token validation failed.' });
   }
+};
+
+export const protect = requireAuth;
+
+export const requirePermission = (permissionKey) => (req, res, next) => {
+  if (req.user?.role === 'affiliate' || req.user?.permissions?.[permissionKey] === true) return next();
+  return res.status(403).json({ message: 'You do not have permission to perform this action.' });
 };
 
 export const protectAdmin = (req, res, next) => {
   const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return res.status(401).json({ message: 'Admin authentication required.' });
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required.' });
-    }
+    if (decoded.role !== 'admin') return res.status(403).json({ message: 'Admin access required.' });
     req.admin = { email: decoded.email };
     return next();
   } catch {

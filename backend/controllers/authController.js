@@ -2,6 +2,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'node:crypto';
 import Affiliate from '../models/Affiliate.js';
+import TeamMember, { defaultTeamPermissions } from '../models/TeamMember.js';
+import EmailIdentity from '../models/EmailIdentity.js';
+import mongoose from 'mongoose';
 
 const generateAffiliateCode = async (name) => {
   const namePrefix = String(name || '')
@@ -26,11 +29,16 @@ const generateAffiliateCode = async (name) => {
  */
 export const registerAffiliate = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const name = String(req.body.name || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || password.length < 8 || password.length > 128) {
+      return res.status(400).json({ message: 'Enter a valid name and email, and a password between 8 and 128 characters.' });
+    }
 
     // 1. Check if the affiliate email already exists
-    const emailExists = await Affiliate.findOne({ email });
-    if (emailExists) {
+    const [emailExists, teamEmailExists] = await Promise.all([Affiliate.exists({ email }), TeamMember.exists({ email })]);
+    if (emailExists || teamEmailExists) {
       return res.status(400).json({ message: 'An account with this email already exists.' });
     }
 
@@ -42,16 +50,22 @@ export const registerAffiliate = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // 4. Save the new affiliate to MongoDB
-    const newAffiliate = await Affiliate.create({
-      name,
-      email,
-      password: hashedPassword,
-      affiliateCode
-    });
+    let newAffiliate;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await EmailIdentity.create([{ email, role: 'affiliate' }], { session });
+        [newAffiliate] = await Affiliate.create([{ name, email, password: hashedPassword, affiliateCode }], { session });
+      });
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
 
     // 5. Generate a secure session JWT token
     const token = jwt.sign(
-      { id: newAffiliate._id },
+      { id: newAffiliate._id, role: 'affiliate' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' } // Session stays valid for 7 days
     );
@@ -64,10 +78,13 @@ export const registerAffiliate = async (req, res) => {
         name: newAffiliate.name,
         email: newAffiliate.email,
         affiliateCode: newAffiliate.affiliateCode,
+        role: 'affiliate',
+        permissions: { canViewOverview: true, canViewAnalytics: true, canCreateSmartlinks: true, canViewOwnSmartlinksOnly: false, canViewEarnings: true, canManageTeam: true, canRequestPayouts: true },
       }
     });
 
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'An account with this email already exists.' });
     return res.status(500).json({ message: 'Server registration error', error: error.message });
   }
 };
@@ -79,39 +96,52 @@ export const registerAffiliate = async (req, res) => {
  */
 export const loginAffiliate = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
 
     // 1. Check if the user account exists
     const affiliate = await Affiliate.findOne({ email });
-    if (!affiliate) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+    if (affiliate) {
+      const isMatch = await bcrypt.compare(password, affiliate.password);
+      if (!isMatch) return res.status(401).json({ message: 'Invalid email or password.' });
+
+      const token = jwt.sign({ id: affiliate._id, role: 'affiliate' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      return res.status(200).json({ token, user: {
+        id: affiliate._id, name: affiliate.name, email: affiliate.email, affiliateCode: affiliate.affiliateCode,
+        role: 'affiliate',
+        permissions: { canViewOverview: true, canViewAnalytics: true, canCreateSmartlinks: true, canViewOwnSmartlinksOnly: false, canViewEarnings: true, canManageTeam: true, canRequestPayouts: true },
+      }, affiliate: { id: affiliate._id, name: affiliate.name, email: affiliate.email, affiliateCode: affiliate.affiliateCode, role: 'affiliate' } });
     }
 
-    // 2. Compare incoming plain text password against database hash
-    const isMatch = await bcrypt.compare(password, affiliate.password);
-    if (!isMatch) {
+    const matchingMembers = await TeamMember.find({ email }).select('+passwordHash').limit(2);
+    if (matchingMembers.length > 1) return res.status(401).json({ message: 'Invalid email or password.' });
+    const member = matchingMembers[0];
+    if (!member || member.status !== 'active' || !member.passwordHash || !await bcrypt.compare(password, member.passwordHash)) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
+    const manager = await Affiliate.findById(member.managerAffiliateId).select('affiliateCode');
+    if (!manager) return res.status(401).json({ message: 'This team member account is no longer connected to an affiliate.' });
 
-    // 3. Issue a fresh session token
+    const permissions = { ...defaultTeamPermissions, ...(member.permissions?.toObject?.() || {}) };
     const token = jwt.sign(
-      { id: affiliate._id },
+      { id: member._id, role: 'team_member', managerAffiliateId: member.managerAffiliateId, permissions },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // 4. Return profile metrics
     return res.status(200).json({
       token,
+      user: {
+        id: member._id, name: member.name, email: member.email, affiliateCode: manager.affiliateCode,
+        role: 'team_member', managerAffiliateId: member.managerAffiliateId, permissions,
+      },
       affiliate: {
-        id: affiliate._id,
-        name: affiliate.name,
-        email: affiliate.email,
-        affiliateCode: affiliate.affiliateCode
-      }
+        id: member._id, name: member.name, email: member.email, affiliateCode: manager.affiliateCode, role: 'team_member',
+      },
     });
 
   } catch (error) {
+    if (error.code === 11000) return res.status(400).json({ message: 'An account with this email already exists.' });
     return res.status(500).json({ message: 'Server login error', error: error.message });
   }
 };

@@ -34,9 +34,9 @@ export const processMaturedCommissions = async (session) => {
   return maturationResult;
 };
 
-const sumByStatus = async (affiliateId, session) => {
+const sumByStatus = async (affiliateId, session, teamMemberId) => {
   let aggregate = CommissionLedger.aggregate([
-    { $match: { affiliateId: new mongoose.Types.ObjectId(affiliateId) } },
+    { $match: { affiliateId: new mongoose.Types.ObjectId(affiliateId), ...(teamMemberId ? { teamMemberId: new mongoose.Types.ObjectId(teamMemberId) } : {}) } },
     { $group: { _id: '$status', amount: { $sum: { $toDouble: '$amount' } } } },
   ]);
   if (session) aggregate = aggregate.session(session);
@@ -44,9 +44,9 @@ const sumByStatus = async (affiliateId, session) => {
   return Object.fromEntries(rows.map((row) => [row._id, Number(row.amount) || 0]));
 };
 
-export const getAffiliateCommissionSummary = async (affiliateId, session) => {
+export const getAffiliateCommissionSummary = async (affiliateId, session, { teamMemberId } = {}) => {
   await processMaturedCommissions(session);
-  const amounts = await sumByStatus(affiliateId, session);
+  const amounts = await sumByStatus(affiliateId, session, teamMemberId);
 
   let withdrawalsQuery = Withdrawal.find({
     affiliateId: new mongoose.Types.ObjectId(affiliateId),
@@ -54,24 +54,16 @@ export const getAffiliateCommissionSummary = async (affiliateId, session) => {
   }).select('amount status commissionLedgerIds');
   if (session) withdrawalsQuery = withdrawalsQuery.session(session);
   const withdrawals = await withdrawalsQuery;
-  const approvedLedgerIds = withdrawals
-    .filter((withdrawal) => withdrawal.status === 'Approved')
-    .flatMap((withdrawal) => withdrawal.commissionLedgerIds || []);
-
-  let unpaidApprovedEntries = [];
-  if (approvedLedgerIds.length) {
-    let query = CommissionLedger.find({ _id: { $in: approvedLedgerIds }, status: 'available' }).select('_id amount');
-    if (session) query = query.session(session);
-    unpaidApprovedEntries = await query;
-  }
-  const unpaidApprovedAmounts = new Map(unpaidApprovedEntries.map((entry) => [String(entry._id), amountAsNumber(entry.amount)]));
+  const ledgerFilter = { affiliateId: new mongoose.Types.ObjectId(affiliateId), status: 'available', ...(teamMemberId ? { teamMemberId: new mongoose.Types.ObjectId(teamMemberId) } : {}) };
+  let availableQuery = CommissionLedger.find(ledgerFilter).select('_id amount');
+  if (session) availableQuery = availableQuery.session(session);
+  const availableEntries = await availableQuery;
+  const availableAmounts = new Map(availableEntries.map((entry) => [String(entry._id), amountAsNumber(entry.amount)]));
   const reservedWithdrawalAmount = withdrawals.reduce((sum, withdrawal) => {
-    const amount = amountAsNumber(withdrawal.amount);
-    if (withdrawal.status === 'Pending') return sum + amount;
     const ids = withdrawal.commissionLedgerIds || [];
-    if (!ids.length) return sum + amount;
-    const stillAvailable = ids.reduce((entrySum, id) => entrySum + (unpaidApprovedAmounts.get(String(id)) || 0), 0);
-    return sum + Math.min(amount, stillAvailable);
+    if (!ids.length) return sum + (teamMemberId ? 0 : amountAsNumber(withdrawal.amount));
+    const stillAvailable = ids.reduce((entrySum, id) => entrySum + (availableAmounts.get(String(id)) || 0), 0);
+    return sum + stillAvailable;
   }, 0);
 
   const availableBalance = Math.max(0, (amounts.available || 0) - reservedWithdrawalAmount);

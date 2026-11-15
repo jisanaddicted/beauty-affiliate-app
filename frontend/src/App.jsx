@@ -51,7 +51,8 @@ export default function App() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await axios.get('/api/saas-products');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/saas-products', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       setProducts(response.data);
     } catch (error) {
       console.error('Could not load SaaS marketplace:', error.message);
@@ -79,10 +80,10 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (activeTab === 'dashboard' || activeTab === 'payouts') fetchSummary();
+    if ((activeTab === 'dashboard' || activeTab === 'payouts') && affiliate.permissions?.canViewEarnings !== false) fetchSummary();
     if (activeTab === 'marketplace' || activeTab === 'smartlinks') fetchProducts();
-    if (activeTab === 'smartlinks' || activeTab === 'team') fetchTeamMembers();
-  }, [isLoggedIn, activeTab, fetchProducts, fetchSummary, fetchTeamMembers]);
+    if (activeTab === 'team' || (activeTab === 'smartlinks' && (affiliate.role !== 'team_member' || affiliate.permissions?.canManageTeam))) fetchTeamMembers();
+  }, [isLoggedIn, activeTab, fetchProducts, fetchSummary, fetchTeamMembers, affiliate.role, affiliate.permissions]);
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -106,7 +107,26 @@ export default function App() {
     setIsLoggedIn(false);
     setActiveTab('dashboard');
     setSummary(emptySummary);
+    setAffiliate({ name: '', email: '', affiliateCode: '', totalClicks: 0 });
+    setTeamMembers([]);
+    setTeamError('');
+    setDefaultTeamMemberId('');
   };
+
+  const role = affiliate.role || 'affiliate';
+  const permissions = affiliate.permissions || { canViewOverview: true, canViewAnalytics: true, canCreateSmartlinks: true, canViewOwnSmartlinksOnly: false, canViewEarnings: true, canManageTeam: true, canRequestPayouts: true };
+  const navItems = [
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard, visible: role === 'affiliate' || permissions.canViewOverview },
+    { id: 'marketplace', label: 'SaaS marketplace', icon: Store, visible: role === 'affiliate' },
+    { id: 'analytics', label: 'SaaS analytics', icon: Activity, visible: role === 'affiliate' || permissions.canViewAnalytics },
+    { id: 'smartlinks', label: 'Smartlinks', icon: Link2, visible: role === 'affiliate' || permissions.canViewOverview || permissions.canCreateSmartlinks },
+    { id: 'team', label: 'My team', icon: Users, visible: role === 'affiliate' || permissions.canManageTeam },
+    { id: 'payouts', label: 'Payouts', icon: Wallet, visible: role === 'affiliate' || permissions.canRequestPayouts },
+  ].filter((item) => item.visible);
+
+  useEffect(() => {
+    if (isLoggedIn && navItems.length && !navItems.some((item) => item.id === activeTab)) setActiveTab(navItems[0].id);
+  }, [isLoggedIn, activeTab, affiliate.role, affiliate.permissions]);
 
   if (!isLoggedIn) {
     return <main className="min-h-screen bg-neutral-950 px-4 py-10 text-white sm:px-6">
@@ -133,15 +153,6 @@ export default function App() {
     </main>;
   }
 
-  const navItems = [
-    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
-    { id: 'marketplace', label: 'SaaS marketplace', icon: Store },
-    { id: 'analytics', label: 'SaaS analytics', icon: Activity },
-    { id: 'smartlinks', label: 'Smartlinks', icon: Link2 },
-    { id: 'team', label: 'My team', icon: Users },
-    { id: 'payouts', label: 'Payouts', icon: Wallet },
-  ];
-
   return <div className="min-h-screen bg-[#f7f7f5] text-neutral-950 md:flex">
     <aside className="flex w-full flex-col border-b border-neutral-200 bg-white p-4 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r md:p-6">
       <div className="mb-5 flex items-center justify-between md:mb-10"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">GlowAffiliate</div><div className="mt-1 text-sm font-semibold">Partner workspace</div></div><button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 md:hidden"><LogOut size={15} /> Sign out</button></div>
@@ -152,28 +163,32 @@ export default function App() {
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-7 lg:p-10">
       <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">{navItems.find((item) => item.id === activeTab)?.label}</p><h1 className="mt-1 text-2xl font-bold">Hello, {affiliate.name || 'Creator'}</h1></div>
-        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2"><span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Your referral code</span><span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-bold text-amber-900">{affiliate.affiliateCode}</span></div>
+        <div className="flex flex-wrap items-center gap-2">{role === 'team_member' && <span className="rounded-full bg-violet-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">Logged in as Team Member</span>}<div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2"><span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{role === 'team_member' ? 'Your team tracking code' : 'Your referral code'}</span><span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-bold text-amber-900">{role === 'team_member' ? `${affiliate.affiliateCode}.${affiliate.subAffiliateCode}` : affiliate.affiliateCode}</span></div></div>
       </header>
 
-      {activeTab === 'dashboard' && <>
-        <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {!navItems.length && <section className="rounded-2xl border border-neutral-200 bg-white p-8 text-center"><h2 className="font-bold">No dashboard sections are enabled</h2><p className="mt-2 text-sm text-neutral-500">Ask your team lead to grant access to a dashboard section.</p></section>}
+
+      {activeTab === 'dashboard' && (role === 'affiliate' || permissions.canViewOverview) && <>
+        {permissions.canViewEarnings ? <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <BalanceCard title="Locked balance" amount={summary.lockedBalance} detail="Unlocks automatically when your referred users purchase a paid plan." tone="amber" />
           <BalanceCard title="Pending clearance" amount={summary.pendingClearance} detail="Waiting for the SaaS product's refund holding period to finish." tone="blue" />
           <BalanceCard title="Available to withdraw" amount={summary.availableBalance} detail="Available commissions, less withdrawal requests awaiting approval." tone="green" />
-        </section>
+        </section> : <section className="mb-6 grid gap-4 sm:grid-cols-3"><CountCard title="Clicks" value={affiliate.totalClicks} /><CountCard title="Signups" value={affiliate.stats?.signups} /><CountCard title="Conversions" value={affiliate.stats?.conversions} /></section>}
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="mb-4"><h2 className="font-bold">Your partner workspace</h2><p className="mt-1 text-sm text-neutral-500">Manage promoted products, review performance, and track your payouts.</p></div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <QuickLink title="Explore SaaS products" detail="Find products and copy your referral links." onClick={() => setActiveTab('marketplace')} />
-            <QuickLink title="Open analytics" detail="Review clicks, signups, upgrades, and earnings." onClick={() => setActiveTab('analytics')} />
-            <QuickLink title="Manage payouts" detail="Review your withdrawal requests and history." onClick={() => setActiveTab('payouts')} />
+            {role === 'affiliate' && <QuickLink title="Explore SaaS products" detail="Find products and copy your referral links." onClick={() => setActiveTab('marketplace')} />}
+            {navItems.some((item) => item.id === 'smartlinks') && <QuickLink title="Manage smartlinks" detail="Open your campaign links and assignments." onClick={() => setActiveTab('smartlinks')} />}
+            {permissions.canViewAnalytics && <QuickLink title="Open analytics" detail="Review clicks, signups, upgrades, and earnings." onClick={() => setActiveTab('analytics')} />}
+            {permissions.canManageTeam && <QuickLink title="Manage your team" detail="Review team access and performance." onClick={() => setActiveTab('team')} />}
+            {permissions.canRequestPayouts && <QuickLink title="Manage payouts" detail="Review your withdrawal requests and history." onClick={() => setActiveTab('payouts')} />}
           </div>
         </section>
       </>}
       {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
-      {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} />}
-      {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} products={products} teamMembers={teamMembers} defaultTeamMemberId={defaultTeamMemberId} onClearDefault={() => setDefaultTeamMemberId('')} />}
-      {activeTab === 'team' && <TeamTab token={localStorage.getItem('token')} members={teamMembers} loading={teamLoading} error={teamError} onRefresh={fetchTeamMembers} onCreateSmartlink={(memberId) => { setDefaultTeamMemberId(memberId); setActiveTab('smartlinks'); }} />}
+      {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} />}
+      {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} products={products} teamMembers={teamMembers} defaultTeamMemberId={defaultTeamMemberId} canCreate={permissions.canCreateSmartlinks} onClearDefault={() => setDefaultTeamMemberId('')} />}
+      {activeTab === 'team' && <TeamTab token={localStorage.getItem('token')} members={teamMembers} loading={teamLoading} error={teamError} onRefresh={fetchTeamMembers} onCreateSmartlink={(memberId) => { setDefaultTeamMemberId(memberId); setActiveTab('smartlinks'); }} isAffiliate={role === 'affiliate'} currentPermissions={permissions} canViewEarnings={permissions.canViewEarnings} />}
       {activeTab === 'payouts' && <PayoutsTab summary={summary} onSummaryUpdate={setSummary} />}
     </main>
   </div>;
@@ -186,6 +201,10 @@ function BalanceCard({ title, amount, detail, tone }) {
     <p className="mt-3 text-3xl font-black">${Number(amount || 0).toFixed(2)}</p>
     <p className={`mt-3 rounded-lg px-2.5 py-2 text-xs ${tones[tone]}`}>{detail}</p>
   </article>;
+}
+
+function CountCard({ title, value }) {
+  return <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-neutral-400">{title}</p><p className="mt-3 text-3xl font-black">{Number(value || 0).toLocaleString()}</p></article>;
 }
 
 function QuickLink({ title, detail, onClick }) {
