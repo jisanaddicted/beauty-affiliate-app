@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ArrowUpRight, CheckCircle2, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
 
-export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
+export default function PayoutsTab({ summary, onSummaryUpdate }) {
   const [amount, setAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('bKash');
   const [accountType, setAccountType] = useState('Personal');
@@ -78,7 +78,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
       return setMessage({ type: 'error', text: 'The minimum withdrawal request amount limit is 10.' });
     }
 
-    if (numericAmount > affiliateBalance?.balance?.withdrawableBalance) {
+    if (numericAmount > Number(summary?.availableBalance || 0)) {
       return setMessage({ type: 'error', text: 'Requested amount exceeds your withdrawable balance.' });
     }
 
@@ -98,7 +98,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
       setAmount('');
       setAccountNumber('');
       
-      if (onBalanceUpdate) onBalanceUpdate(response.data.updatedBalance);
+      if (onSummaryUpdate) onSummaryUpdate(response.data.summary);
       fetchPayoutHistory();
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Submission failed.' });
@@ -197,13 +197,13 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
               <label className="block text-xs font-bold uppercase text-neutral-700 mb-1">Amount to Transfer</label>
               <div className="relative">
                 <input 
-                  type="number" min="10" step="any" placeholder="Minimum amount 10" required value={amount}
+                  type="number" min="10" step="0.01" placeholder="Minimum amount 10" required value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none focus:border-black"
                 />
               </div>
               <span className="text-[10px] text-neutral-400 block mt-1.5 font-medium"> 
-                Available Wallet Reserve Pool: <b>{Number(affiliateBalance?.balance?.withdrawableBalance || 0).toFixed(2)}</b>
+                Available to withdraw: <b>{Number(summary?.availableBalance || 0).toFixed(2)}</b>
               </span>
             </div>
 
@@ -243,7 +243,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                 <div key={log._id} className="p-4 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-neutral-900">{log.method} ({log.accountType})</span>
-                    <span className="font-black text-neutral-950">{log.amount.toFixed(2)}</span>
+                    <span className="font-black text-neutral-950">{Number(log.amount).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span>{log.accountNumber}</span>
@@ -274,7 +274,7 @@ export default function PayoutsTab({ affiliateBalance, onBalanceUpdate }) {
                       <td className="px-6 py-4">
                         <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${log.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : log.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>{log.status}</span>
                       </td>
-                      <td className="px-6 py-4 font-black text-neutral-950">{log.amount.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-black text-neutral-950">{Number(log.amount).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>

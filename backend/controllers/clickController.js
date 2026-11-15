@@ -1,23 +1,43 @@
 import Affiliate from '../models/Affiliate.js';
 import AffiliateClick from '../models/AffiliateClick.js';
+import SaasProduct from '../models/SaasProduct.js';
 
-const DEFAULT_SAAS_APP_URL = 'https://videoomniverse.onrender.com';
+const redirectTo = (res, url) => res.redirect(302, url.toString());
 
 export const trackAffiliateClick = async (req, res) => {
+  let product;
   let destination;
 
   try {
-    destination = new URL(process.env.SAAS_APP_URL || DEFAULT_SAAS_APP_URL);
-    if (!['http:', 'https:'].includes(destination.protocol)) {
-      throw new Error('SAAS_APP_URL must use HTTP or HTTPS.');
+    const slug = req.params.slug || req.query.product || req.query.app;
+    product = slug
+      ? await SaasProduct.findOne({ slug: String(slug).toLowerCase() })
+      : await SaasProduct.findOne({ status: 'active' }).sort({ createdAt: 1 });
+
+    if (!product) {
+      if (process.env.SAAS_APP_URL) return redirectTo(res, new URL(process.env.SAAS_APP_URL));
+      return res.status(404).send('SaaS product not found.');
     }
-    destination.searchParams.delete('ref');
+
+    destination = new URL(product.destinationUrl);
+    destination.searchParams.delete(product.refParamKey || 'ref');
+    if (product.refParamKey && product.refParamKey !== 'ref') destination.searchParams.delete('ref');
   } catch (error) {
-    console.error('Invalid SAAS_APP_URL:', error.message);
-    return res.status(500).send('Affiliate redirect is not configured.');
+    console.error('Affiliate tracking destination lookup failed:', error.message);
+    if (process.env.SAAS_APP_URL) {
+      try {
+        return redirectTo(res, new URL(process.env.SAAS_APP_URL));
+      } catch {
+        // Return a generic error only when no safe redirect URL is configured.
+      }
+    }
+    return res.status(503).send('Affiliate destination is temporarily unavailable.');
   }
 
-  const requestedCode = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
+  const refKey = product.refParamKey || 'ref';
+  const requestedCode = typeof req.query[refKey] === 'string'
+    ? req.query[refKey].trim()
+    : (typeof req.query.ref === 'string' ? req.query.ref.trim() : '');
 
   if (requestedCode) {
     try {
@@ -28,9 +48,10 @@ export const trackAffiliateClick = async (req, res) => {
       );
 
       if (affiliate) {
-        destination.searchParams.set('ref', affiliate.affiliateCode);
+        destination.searchParams.set(refKey, affiliate.affiliateCode);
         await AffiliateClick.create({
           affiliateId: affiliate._id,
+          saasProductId: product._id,
           ipAddress: req.ip || '',
           userAgent: req.get('user-agent') || '',
           referer: req.get('referer') || '',
@@ -38,10 +59,9 @@ export const trackAffiliateClick = async (req, res) => {
         });
       }
     } catch (error) {
-      // Analytics failures must never prevent the visitor from reaching the SaaS app.
-      console.error('Affiliate click tracking failed:', error.message);
+      console.error('Affiliate click analytics failed:', error.message);
     }
   }
 
-  return res.redirect(302, destination.toString());
+  return redirectTo(res, destination);
 };

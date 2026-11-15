@@ -1,738 +1,237 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { 
-  Shield, PlusCircle, LogOut, Package, 
-  Truck, CheckCircle2, RefreshCw, Search, ShoppingBag, Menu, X,
-  DollarSign, User, Phone, CheckCircle, XCircle, Clock
-} from 'lucide-react';
+import { Check, Copy, LogOut, Plus, RefreshCw, Save, Shield, Trash2, Wallet } from 'lucide-react';
+
+const emptyForm = () => ({
+  name: '', slug: '', tagline: '', description: '', logoUrl: '', bannerUrl: '', destinationUrl: '',
+  refParamKey: 'ref', cookieWindowDays: 30, signupBountyAmount: '0', requirePurchaseToUnlock: true,
+  planTiers: [], holdingPeriodDays: 14, promoResources: '{}', status: 'active',
+});
+
+const asForm = (product) => ({
+  name: product.name || '', slug: product.slug || '', tagline: product.tagline || '', description: product.description || '',
+  logoUrl: product.logoUrl || '', bannerUrl: product.bannerUrl || '', destinationUrl: product.destinationUrl || '',
+  refParamKey: product.refParamKey || 'ref', cookieWindowDays: product.cookieWindowDays ?? 30,
+  signupBountyAmount: String(product.signupBountyAmount ?? 0), requirePurchaseToUnlock: product.requirePurchaseToUnlock !== false,
+  planTiers: (product.planTiers || []).map((tier) => ({ ...tier, commissionValue: String(tier.commissionValue) })),
+  holdingPeriodDays: product.holdingPeriodDays ?? 14,
+  promoResources: JSON.stringify(product.promoResources ?? {}, null, 2), status: product.status || 'active',
+});
 
 export default function AdminPanel() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  
-  // Tab Controller Engine ('products' vs 'orders' vs 'withdrawals')
+  const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState('products');
-
-  // Mobile Drawer Toggle State
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Order Tracking States
-  const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  const [updatingId, setUpdatingId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-
-  // Withdrawal/Payment Approval States
+  const [products, setProducts] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
-  const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
-  const [processingId, setProcessingId] = useState(null);
-  const [withdrawalFilter, setWithdrawalFilter] = useState('Pending');
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState('');
 
-  const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxj-tcfupCwXvdb4Mj26pzPmr51vyNMfUQnlSLHQZMU-tqeqYvn_0Fun0IrB-H7KxvLig/exec';
-  const API_BASE_URL = '/api';
-  const adminAuthConfig = () => ({
-    headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` }
-  });
-  const reportAdminRequestError = (error, fallbackMessage) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+  const authConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` } });
+  const handleRequestError = (requestError) => {
+    if ([401, 403].includes(requestError.response?.status)) {
       localStorage.removeItem('adminToken');
       setIsAdminLoggedIn(false);
     }
-    setErrorMsg(error.response?.data?.message || fallbackMessage);
+    setError(requestError.response?.data?.message || 'The request failed. Please try again.');
+  };
+
+  const loadProducts = async () => {
+    try {
+      const response = await axios.get('/api/admin/saas-products', authConfig());
+      setProducts(response.data);
+    } catch (requestError) { handleRequestError(requestError); }
+  };
+
+  const loadWithdrawals = async () => {
+    try {
+      const response = await axios.get('/api/admin/withdrawals?status=Pending', authConfig());
+      setWithdrawals(response.data);
+    } catch (requestError) { handleRequestError(requestError); }
   };
 
   useEffect(() => {
     setIsAdminLoggedIn(Boolean(localStorage.getItem('adminToken')));
   }, []);
 
-  // Form Fields for Adding Product
-  const [formData, setFormData] = useState({
-    name: '', price: '', commissionRate: '', sku: '',
-    productUrl: '', description: '', category: 'Premium Skincare',
-    stock: '', highlights: '', image: ''
-  });
-
-  // Fetch all orders from Google Sheet
-  const fetchAllOrders = async () => {
-    setLoadingOrders(true);
-    try {
-      const response = await axios.get(GOOGLE_SHEET_URL);
-      if (response.data.result === 'success') {
-        setOrders(response.data.data);
-      }
-    } catch (err) {
-      console.error("Spreadsheet Sync Error:", err);
-    } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  // Run fetch loop when moving into the order manager layout tab
   useEffect(() => {
-    if (isAdminLoggedIn && activeTab === 'orders') {
-      fetchAllOrders();
+    if (isAdminLoggedIn) {
+      loadProducts();
+      loadWithdrawals();
     }
-  }, [isAdminLoggedIn, activeTab]);
+  }, [isAdminLoggedIn]);
 
-  // Fetch withdrawals when moving to withdrawals tab
-  useEffect(() => {
-    if (isAdminLoggedIn && activeTab === 'withdrawals') {
-      fetchWithdrawals();
-    }
-  }, [isAdminLoggedIn, activeTab]);
-
-  const handleAdminLogin = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setLoginError('');
     try {
-      const response = await axios.post(`${API_BASE_URL}/admin/login`, { email, password });
-      if (response.data?.token) {
-        localStorage.setItem('adminToken', response.data.token);
-        setIsAdminLoggedIn(true);
-      }
-    } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Access Denied');
+      const response = await axios.post('/api/admin/login', { email, password });
+      localStorage.setItem('adminToken', response.data.token);
+      setIsAdminLoggedIn(true);
+      setPassword('');
+    } catch (requestError) {
+      setLoginError(requestError.response?.data?.message || 'Admin sign-in failed.');
     }
   };
 
-  const handleCreateProduct = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
+  const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const updateTier = (index, field, value) => setForm((current) => ({
+    ...current,
+    planTiers: current.planTiers.map((tier, tierIndex) => tierIndex === index ? { ...tier, [field]: value } : tier),
+  }));
+
+  const resetForm = () => { setForm(emptyForm()); setEditingId(''); setSelectedProduct(null); };
+
+  const saveProduct = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    let promoResources;
+    try { promoResources = JSON.parse(form.promoResources || '{}'); }
+    catch { promoResources = form.promoResources; }
+
+    const payload = {
+      ...form,
+      signupBountyAmount: Number(form.signupBountyAmount),
+      cookieWindowDays: Number(form.cookieWindowDays),
+      holdingPeriodDays: Number(form.holdingPeriodDays),
+      planTiers: form.planTiers.filter((tier) => tier.planId && tier.planName).map((tier) => ({ ...tier, commissionValue: Number(tier.commissionValue) })),
+      promoResources,
+    };
     try {
-      await axios.post(`${API_BASE_URL}/admin/products`, formData, adminAuthConfig());
-      setSuccessMsg('✨ Product pushed to MongoDB live marketplace successfully!');
-      setFormData({
-        name: '', price: '', commissionRate: '', sku: '',
-        productUrl: '', description: '', category: 'Premium Skincare',
-        stock: '', highlights: '', image: ''
-      });
-    } catch (err) {
-      reportAdminRequestError(err, 'Failed saving document configuration.');
-    }
+      const response = editingId
+        ? await axios.put(`/api/admin/saas-products/${editingId}`, payload, authConfig())
+        : await axios.post('/api/admin/saas-products', payload, authConfig());
+      setSelectedProduct(response.data);
+      setSuccess(editingId ? 'SaaS product updated.' : 'SaaS product created. Copy the webhook secret into your SaaS backend.');
+      setForm(asForm(response.data));
+      setEditingId(response.data._id);
+      await loadProducts();
+    } catch (requestError) { handleRequestError(requestError); }
+    finally { setSaving(false); }
   };
 
-  const handleMarkAsDelivered = async (order, index) => {
-    setUpdatingId(index);
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const payload = {
-        action: "updateStatus",
-        customerPhone: order.customerPhone,
-        productId: order.productId,
-        status: "Delivered"
-      };
-
-      // 🚀 Stringifying payload and sending as text/plain bypasses restrictive preflight blockades
-      const response = await axios.post(GOOGLE_SHEET_URL, JSON.stringify(payload), {
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-      });
-
-      if (response.data.result === 'success') {
-        const updatedOrders = [...orders];
-        updatedOrders[index].deliveryStatus = 'Delivered';
-        setOrders(updatedOrders);
-        setSuccessMsg(`🚀 Marked order from ${order.customerName} as Delivered successfully.`);
-      } else {
-        setErrorMsg(response.data.message || "Could not update sheet cell tracking parameters.");
-      }
-    } catch (err) {
-      console.error("Transmission Error:", err);
-      setErrorMsg("Network transmission fallback timeout error or CORS restriction.");
-    } finally {
-      setUpdatingId(null);
-    }
+  const editProduct = (product) => {
+    setSelectedProduct(product);
+    setEditingId(product._id);
+    setForm(asForm(product));
+    setError('');
+    setSuccess('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 💰 Fetch Withdrawal Requests
-  const fetchWithdrawals = async () => {
-    setLoadingWithdrawals(true);
-    setErrorMsg('');
+  const copyValue = async (key, value) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/withdrawals?status=${withdrawalFilter}`, adminAuthConfig());
-      setWithdrawals(response.data);
-    } catch (err) {
-      reportAdminRequestError(err, 'Failed to fetch withdrawal requests');
-    } finally {
-      setLoadingWithdrawals(false);
-    }
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+      window.setTimeout(() => setCopied(''), 1500);
+    } catch { setError('Clipboard access failed.'); }
   };
 
-  // ✅ Approve Withdrawal
-  const handleApproveWithdrawal = async (withdrawalId) => {
-    setProcessingId(withdrawalId);
-    setErrorMsg('');
-    setSuccessMsg('');
+  const rotateSecret = async (product) => {
+    if (!window.confirm(`Rotate the webhook secret for ${product.name}? The current secret will stop working immediately.`)) return;
     try {
-      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/approve`, {}, adminAuthConfig());
-      setSuccessMsg(`✅ Payment of $${withdrawals.find(w => w._id === withdrawalId)?.amount} approved successfully!`);
-      // Remove from list or update status
-      setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
-    } catch (err) {
-      reportAdminRequestError(err, 'Failed to approve withdrawal');
-    } finally {
-      setProcessingId(null);
-    }
+      const response = await axios.post(`/api/admin/saas-products/${product._id}/rotate-webhook-secret`, {}, authConfig());
+      const updated = { ...product, webhookSecret: response.data.webhookSecret };
+      setSelectedProduct(updated);
+      setProducts((current) => current.map((item) => item._id === product._id ? updated : item));
+      setSuccess('Webhook secret rotated. Update the SaaS webhook configuration now.');
+    } catch (requestError) { handleRequestError(requestError); }
   };
 
-  // ❌ Reject Withdrawal
-  const handleRejectWithdrawal = async (withdrawalId) => {
-    setProcessingId(withdrawalId);
-    setErrorMsg('');
-    setSuccessMsg('');
+  const processWithdrawal = async (withdrawal, action) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/admin/withdrawals/${withdrawalId}/reject`, {}, adminAuthConfig());
-      setSuccessMsg(`❌ Payment request rejected. Funds returned to affiliate.`);
-      // Remove from list or update status
-      setWithdrawals(withdrawals.filter(w => w._id !== withdrawalId));
-    } catch (err) {
-      reportAdminRequestError(err, 'Failed to reject withdrawal');
-    } finally {
-      setProcessingId(null);
-    }
+      await axios.put(`/api/admin/withdrawals/${withdrawal._id}/${action}`, {}, authConfig());
+      setSuccess(action === 'approve' ? 'Withdrawal approved and reserved commissions marked paid.' : 'Withdrawal rejected; reserved commissions are available again.');
+      await loadWithdrawals();
+    } catch (requestError) { handleRequestError(requestError); }
   };
 
-  // Compute Live Metrics from orders array
-  const totalOrders = orders.length;
-  const onWayCount = orders.filter(o => (o.deliveryStatus || 'On Way').toLowerCase() === 'on way').length;
-  const deliveredCount = orders.filter(o => (o.deliveryStatus || '').toLowerCase() === 'delivered').length;
+  if (!isAdminLoggedIn) return <main className="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
+    <form onSubmit={handleLogin} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-7 text-white">
+      <div className="mb-6 text-center"><div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-800 text-amber-300"><Shield size={22} /></div><h1 className="text-xl font-bold">SaaS platform admin</h1><p className="mt-1 text-xs text-neutral-400">Sign in using the server-configured credentials.</p></div>
+      {loginError && <p role="alert" className="mb-4 rounded-lg bg-red-950 p-3 text-xs text-red-300">{loginError}</p>}
+      <label className="mb-4 block text-xs text-neutral-300">Admin email<input required type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white" /></label>
+      <label className="mb-5 block text-xs text-neutral-300">Admin password<input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white" /></label>
+      <button className="w-full rounded-lg bg-white py-3 text-sm font-bold text-neutral-950">Sign in</button>
+    </form>
+  </main>;
 
-  // Filter and search computation rule mapping
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.referralCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.productName.toLowerCase().includes(searchTerm.toLowerCase());
-      
-    const status = (order.deliveryStatus || 'On Way').toLowerCase();
-    if (statusFilter === 'On Way') return matchesSearch && status === 'on way';
-    if (statusFilter === 'Delivered') return matchesSearch && status === 'delivered';
-    return matchesSearch;
-  });
+  return <div className="min-h-screen bg-neutral-100 text-neutral-950 md:flex">
+    <aside className="flex w-full flex-col border-b bg-white p-4 md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r md:p-5">
+      <div className="mb-6 flex items-center justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">GlowAffiliate</div><h1 className="mt-1 font-bold">SaaS control</h1></div><button onClick={() => { localStorage.removeItem('adminToken'); setIsAdminLoggedIn(false); }} className="rounded-lg p-2 text-red-700 hover:bg-red-50" title="Sign out"><LogOut size={17} /></button></div>
+      <nav className="grid grid-cols-2 gap-2 md:grid-cols-1"><button onClick={() => setActiveTab('products')} className={`rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'products' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}>SaaS products</button><button onClick={() => setActiveTab('withdrawals')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${activeTab === 'withdrawals' ? 'bg-neutral-950 text-white' : 'hover:bg-neutral-100'}`}><Wallet size={15} />Payout requests</button></nav>
+      <p className="mt-auto hidden pt-6 text-[10px] text-neutral-400 md:block">Secrets are displayed only in this authenticated admin session.</p>
+    </aside>
 
-  if (!isAdminLoggedIn) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 sm:p-6">
-        <form onSubmit={handleAdminLogin} className="w-full max-w-sm bg-neutral-900 border border-neutral-800 p-6 sm:p-8 rounded-2xl shadow-xl">
-          <div className="flex flex-col items-center mb-6">
-            <div className="p-3 bg-neutral-800 rounded-xl text-amber-400 mb-2"><Shield size={24} /></div>
-            <h2 className="text-xl font-bold text-white tracking-tight">System Infrastructure Login</h2>
-            <p className="text-xs text-neutral-500 mt-1">Sign in with your configured administrator account.</p>
-          </div>
-          {errorMsg && <div className="p-3.5 bg-red-950 border border-red-900 text-red-400 text-xs rounded-xl mb-4">{errorMsg}</div>}
-          <div className="space-y-4">
-            <input type="email" placeholder="Admin Email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-sm focus:outline-none focus:border-neutral-700"/>
-            <input type="password" placeholder="Admin Password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 bg-neutral-950 border border-neutral-800 text-white rounded-xl text-sm focus:outline-none focus:border-neutral-700"/>
-            <button type="submit" className="w-full bg-white hover:bg-neutral-200 text-black py-3 rounded-xl font-semibold text-sm transition-all">Sign in</button>
-          </div>
-        </form>
-      </div>
-    );
-  }
+    <main className="mx-auto w-full max-w-7xl p-4 sm:p-7">
+      <header className="mb-6 flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Platform administration</p><h2 className="mt-1 text-2xl font-bold">{activeTab === 'products' ? 'SaaS products' : 'Available-balance payouts'}</h2></div><button onClick={() => { loadProducts(); loadWithdrawals(); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-semibold"><RefreshCw size={14} />Refresh</button></header>
+      {(error || success) && <div role="status" className={`mb-4 rounded-xl p-3 text-sm ${error ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{error || success}</div>}
 
-  return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-neutral-50 text-neutral-900 relative">
-      
-      {/* 📱 MOBILE NAVIGATION BAR */}
-      <header className="md:hidden w-full bg-white border-b border-neutral-200 p-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-neutral-950 rounded-lg text-white"><Shield size={14} /></div>
-          <span className="font-bold text-sm tracking-tight">Glow Control</span>
-        </div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-all"
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </header>
+      {activeTab === 'products' && <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+        <section className="rounded-2xl border bg-white p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between"><div><h3 className="font-bold">{editingId ? 'Edit SaaS product' : 'Add SaaS product'}</h3><p className="mt-1 text-xs text-neutral-500">Set referral rewards, subscription tiers, and promo resources.</p></div>{editingId && <button onClick={resetForm} className="text-xs font-semibold text-neutral-500 underline">New product</button>}</div>
+          <form onSubmit={saveProduct} className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2"><Field label="Product name" value={form.name} onChange={(value) => updateForm('name', value)} required /><Field label="URL slug" value={form.slug} onChange={(value) => updateForm('slug', value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))} required /><Field label="Tagline" value={form.tagline} onChange={(value) => updateForm('tagline', value)} /><Field label="Destination URL" value={form.destinationUrl} onChange={(value) => updateForm('destinationUrl', value)} type="url" required /><Field label="Logo URL" value={form.logoUrl} onChange={(value) => updateForm('logoUrl', value)} type="url" /><Field label="Banner URL" value={form.bannerUrl} onChange={(value) => updateForm('bannerUrl', value)} type="url" /></div>
+            <label className="block text-xs font-semibold text-neutral-600">Description<textarea rows="3" value={form.description} onChange={(event) => updateForm('description', event.target.value)} className="mt-1.5 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+            <div className="grid gap-3 sm:grid-cols-2"><Field label="Referral parameter key" value={form.refParamKey} onChange={(value) => updateForm('refParamKey', value)} required /><Field label="Cookie window (days)" type="number" min="0" value={form.cookieWindowDays} onChange={(value) => updateForm('cookieWindowDays', value)} /><Field label="Signup bounty" type="number" min="0" step="0.01" value={form.signupBountyAmount} onChange={(value) => updateForm('signupBountyAmount', value)} required /><Field label="Holding period (days)" type="number" min="0" value={form.holdingPeriodDays} onChange={(value) => updateForm('holdingPeriodDays', value)} /></div>
+            <label className="flex items-center gap-2 text-xs font-medium text-neutral-700"><input type="checkbox" checked={form.requirePurchaseToUnlock} onChange={(event) => updateForm('requirePurchaseToUnlock', event.target.checked)} />Require a paid purchase to unlock signup bounty</label>
 
-      {/* 🖥️ SLIDE-OUT SIDEBAR CONTROLLER */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-neutral-200 p-6 flex flex-col justify-between shrink-0 transform transition-transform duration-300 ease-in-out
-        md:relative md:transform-none md:flex
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div>
-          <div className="hidden md:flex items-center gap-3 mb-8 px-2">
-            <div className="p-2 bg-neutral-950 rounded-lg text-white"><Shield size={16} /></div>
-            <span className="font-bold text-base tracking-tight">Glow Core Control</span>
-          </div>
-          <nav className="space-y-1 mt-14 md:mt-0">
-            <button 
-              type="button"
-              onClick={() => { setActiveTab('products'); setIsMobileMenuOpen(false); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-colors ${activeTab === 'products' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
-            >
-              <PlusCircle size={18} /> Add New Product
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-colors ${activeTab === 'orders' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
-            >
-              <Package size={18} /> Order Sync Log
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setActiveTab('withdrawals'); setIsMobileMenuOpen(false); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-colors ${activeTab === 'withdrawals' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
-            >
-              <DollarSign size={18} /> Payment Approvals
-            </button>
-          </nav>
-        </div>
-        <button onClick={() => { localStorage.removeItem('adminToken'); setIsAdminLoggedIn(false); }} className="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 font-medium rounded-lg text-sm w-full mt-6"><LogOut size={18} /> Exit Console</button>
-      </aside>
-
-      {/* Drawer Overlay for Mobile Screen Dimming */}
-      {isMobileMenuOpen && (
-        <div onClick={() => setIsMobileMenuOpen(false)} className="fixed inset-0 bg-black/20 z-30 md:hidden" />
-      )}
-
-      {/* CORE DISPLAY WINDOW VIEWPORTS */}
-      <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-5xl w-full mx-auto overflow-x-hidden">
-        
-        {successMsg && <div className="p-4 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-sm font-medium mb-6">{successMsg}</div>}
-        {errorMsg && <div className="p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl text-sm font-medium mb-6">{errorMsg}</div>}
-
-        {/* CONDITION 1: INVENTORY TAB ENGINE RENDER */}
-        {activeTab === 'products' && (
-          <>
-            <header className="mb-6 md:mb-8">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight">Marketplace Inventory Control</h1>
-              <p className="text-xs sm:text-sm text-neutral-500 mt-1">Inject dynamic product metadata fields straight into your application cluster collections.</p>
-            </header>
-
-            <form onSubmit={handleCreateProduct} className="bg-white border border-neutral-200 rounded-2xl p-4 sm:p-8 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Product Title / Name</label>
-                <input type="text" required placeholder="e.g., Hydra Glow Vitamin C Balm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Retail Price ($)</label>
-                <input type="number" required placeholder="48" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Affiliate Commission Rate (%)</label>
-                <input type="number" required placeholder="15" value={formData.commissionRate} onChange={e => setFormData({...formData, commissionRate: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Unique SKU Code</label>
-                <input type="text" required placeholder="GLOW-BALM-01" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value.toUpperCase()})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Initial Inventory Stock Count</label>
-                <input type="number" required placeholder="100" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Target Landing Page Base URL</label>
-                <input type="text" required placeholder={`${window.location.origin}/product/PRODUCT_ID`} value={formData.productUrl} onChange={e => setFormData({...formData, productUrl: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Display Image Cover URL</label>
-                <input type="text" placeholder="https://images.unsplash.com/..." value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Highlights / Selling Badges (Comma Separated)</label>
-                <input type="text" placeholder="100% Vegan, Cruelty Free, Paraben Free" value={formData.highlights} onChange={e => setFormData({...formData, highlights: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black" />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Marketing Copy Description</label>
-                <textarea rows="4" required placeholder="Describe the high conversion metrics and formulation benefits..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black resize-none" />
-              </div>
-
-              <button type="submit" className="sm:col-span-2 w-full bg-neutral-950 hover:bg-black text-white font-bold text-sm tracking-wide py-3.5 rounded-xl transition-all shadow-md mt-2">Publish Item to Database</button>
-            </form>
-          </>
-        )}
-
-        {/* CONDITION 2: PAYMENT WITHDRAWAL APPROVAL VIEWPORT */}
-        {activeTab === 'withdrawals' && (
-          <div className="space-y-6">
-            <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Payment Approval Desk</h1>
-                <p className="text-xs sm:text-sm text-neutral-500 mt-1">Review and process affiliate withdrawal requests.</p>
-              </div>
-              <button 
-                type="button" onClick={fetchWithdrawals} disabled={loadingWithdrawals}
-                className="flex items-center justify-center gap-1.5 bg-neutral-200/70 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all disabled:opacity-50 self-start sm:self-auto shrink-0"
-              >
-                <RefreshCw size={13} className={loadingWithdrawals ? 'animate-spin' : ''} /> Refresh Queue
-              </button>
-            </header>
-
-            {/* FILTER TABS */}
-            <div className="flex bg-neutral-100 p-1 rounded-xl text-xs font-bold w-fit overflow-x-auto">
-              {['Pending', 'Approved', 'Rejected'].map((filter) => (
-                <button
-                  key={filter} type="button" onClick={() => { setWithdrawalFilter(filter); }}
-                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all ${withdrawalFilter === filter ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}
-                >
-                  {filter}
-                </button>
-              ))}
+            <div className="rounded-xl border p-4"><div className="mb-3 flex items-center justify-between"><div><h4 className="text-sm font-bold">Plan commission tiers</h4><p className="mt-0.5 text-[11px] text-neutral-500">Fixed amount or percentage of amount paid.</p></div><button type="button" onClick={() => updateForm('planTiers', [...form.planTiers, { planId: '', planName: '', commissionType: 'fixed', commissionValue: '0' }])} className="inline-flex items-center gap-1 rounded-lg bg-neutral-950 px-2.5 py-2 text-[11px] font-bold text-white"><Plus size={13} />Add tier</button></div>
+              {form.planTiers.length === 0 && <p className="text-xs text-neutral-400">No tiers configured.</p>}
+              <div className="space-y-3">{form.planTiers.map((tier, index) => <div key={index} className="grid gap-2 rounded-lg bg-neutral-50 p-3 sm:grid-cols-[1fr_1fr_125px_120px_32px]">
+                <Field label="Plan ID" value={tier.planId} onChange={(value) => updateTier(index, 'planId', value)} required />
+                <Field label="Plan name" value={tier.planName} onChange={(value) => updateTier(index, 'planName', value)} required />
+                <label className="text-[10px] font-semibold text-neutral-500">Commission type<select value={tier.commissionType} onChange={(event) => updateTier(index, 'commissionType', event.target.value)} className="mt-1 w-full rounded-md border bg-white px-2 py-2 text-xs"><option value="fixed">Fixed</option><option value="percentage">Percentage</option></select></label>
+                <Field label={tier.commissionType === 'percentage' ? 'Percent' : 'Amount'} type="number" min="0" step="0.01" value={tier.commissionValue} onChange={(value) => updateTier(index, 'commissionValue', value)} required />
+                <button type="button" onClick={() => updateForm('planTiers', form.planTiers.filter((_, tierIndex) => tierIndex !== index))} className="mt-4 h-8 rounded-md text-red-600 hover:bg-red-100" aria-label="Remove tier"><Trash2 size={15} /></button>
+              </div>)}</div>
             </div>
 
-            {/* WITHDRAWAL REQUESTS LIST */}
-            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
-              {loadingWithdrawals ? (
-                <div className="p-12 text-center text-xs text-neutral-400 font-bold tracking-wide animate-pulse">Loading withdrawal requests...</div>
-              ) : withdrawals.length === 0 ? (
-                <div className="p-12 text-center text-xs text-neutral-400 font-semibold">No {withdrawalFilter.toLowerCase()} withdrawal requests found.</div>
-              ) : (
-                <div className="w-full">
-                  {/* 📱 MOBILE CARDS VIEW */}
-                  <div className="block lg:hidden divide-y divide-neutral-100">
-                    {withdrawals.map((withdrawal) => (
-                      <div key={withdrawal._id} className="p-4 space-y-3 bg-white text-xs">
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 bg-neutral-100 rounded-lg">
-                              <User size={14} className="text-neutral-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-neutral-950 text-sm leading-tight">{withdrawal.affiliateId?.name || 'Unknown'}</h4>
-                              <p className="text-[10px] text-neutral-400 font-mono">{withdrawal.affiliateId?.email}</p>
-                            </div>
-                          </div>
-                          <span className="font-black text-neutral-950 text-sm">${withdrawal.amount.toFixed(2)}</span>
-                        </div>
+            <label className="block text-xs font-semibold text-neutral-600">Promo resources (JSON)<textarea rows="5" value={form.promoResources} onChange={(event) => updateForm('promoResources', event.target.value)} placeholder={'{ "email": "Swipe copy...", "demo": "https://..." }'} className="mt-1.5 w-full rounded-lg border px-3 py-2 font-mono text-xs" /></label>
+            <label className="block text-xs font-semibold text-neutral-600">Product status<select value={form.status} onChange={(event) => updateForm('status', event.target.value)} className="mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm"><option value="active">Active</option><option value="paused">Paused</option><option value="private">Private</option></select></label>
+            <button disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-950 py-3 text-sm font-bold text-white disabled:opacity-50"><Save size={15} />{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create SaaS product'}</button>
+          </form>
+          {selectedProduct && <WebhookDetails product={selectedProduct} copied={copied} onCopy={copyValue} onRotate={rotateSecret} />}
+        </section>
 
-                        <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1.5 text-neutral-600">
-                          <div className="flex items-center gap-2">
-                            <Phone size={11} className="text-neutral-400" />
-                            <span className="text-[11px] font-mono">{withdrawal.affiliateId?.phone || 'N/A'}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <DollarSign size={11} className="text-neutral-400" />
-                            <span className="text-[11px] font-semibold">{withdrawal.method} • {withdrawal.accountType}</span>
-                          </div>
-                          <div className="text-[11px] font-mono text-neutral-500 pt-1 border-t border-neutral-200/40 mt-1">
-                            Account: {withdrawal.accountNumber}
-                          </div>
-                          <div className="text-[10px] text-neutral-400 pt-1">
-                            {new Date(withdrawal.createdAt).toLocaleDateString('en-US', { 
-                              year: 'numeric', 
-                              month: 'short', 
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
-                        </div>
+        <section className="space-y-3"><h3 className="font-bold">Configured products ({products.length})</h3>{products.length === 0 ? <div className="rounded-xl border bg-white p-5 text-sm text-neutral-500">No SaaS products created yet.</div> : products.map((product) => <article key={product._id} className="rounded-xl border bg-white p-4">
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><h4 className="truncate font-bold">{product.name}</h4><span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold uppercase">{product.status}</span></div><p className="mt-1 text-xs text-neutral-500">/{product.slug} · ${Number(product.signupBountyAmount).toFixed(2)} signup bounty</p><p className="mt-1 text-[11px] text-neutral-500">{product.planTiers?.length || 0} plan tier(s)</p></div><button onClick={() => editProduct(product)} className="shrink-0 rounded-lg border px-3 py-2 text-xs font-bold hover:bg-neutral-50">Edit & details</button></div>
+        </article>)}</section>
+      </div>}
 
-                        {withdrawal.status === 'Pending' && (
-                          <div className="flex gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleApproveWithdrawal(withdrawal._id)}
-                              disabled={processingId !== null}
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl transition-all text-[11px] disabled:opacity-40 shadow-sm flex items-center justify-center gap-1"
-                            >
-                              <CheckCircle size={12} /> {processingId === withdrawal._id ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRejectWithdrawal(withdrawal._id)}
-                              disabled={processingId !== null}
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-2 rounded-xl transition-all text-[11px] disabled:opacity-40 shadow-sm flex items-center justify-center gap-1"
-                            >
-                              <XCircle size={12} /> {processingId === withdrawal._id ? 'Processing...' : 'Reject'}
-                            </button>
-                          </div>
-                        )}
-                        {withdrawal.status !== 'Pending' && (
-                          <div className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg ${
-                            withdrawal.status === 'Approved' 
-                              ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' 
-                              : 'text-red-600 bg-red-50 border border-red-100'
-                          }`}>
-                            {withdrawal.status === 'Approved' ? <CheckCircle size={12}/> : <XCircle size={12}/>}
-                            {withdrawal.status}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+      {activeTab === 'withdrawals' && <section className="overflow-hidden rounded-2xl border bg-white"><div className="border-b px-5 py-4"><h3 className="font-bold">Pending payout requests</h3><p className="mt-1 text-xs text-neutral-500">Approval marks the reserved available commission ledger entries as paid.</p></div>
+        {withdrawals.length === 0 ? <p className="p-8 text-center text-sm text-neutral-500">No pending payout requests.</p> : <div className="divide-y">{withdrawals.map((withdrawal) => <article key={withdrawal._id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div><h4 className="font-bold">{withdrawal.affiliateId?.name || 'Affiliate'} <span className="text-xs font-normal text-neutral-500">({withdrawal.affiliateId?.email || 'unknown'})</span></h4><p className="mt-1 text-sm">${Number(withdrawal.amount).toFixed(2)} via {withdrawal.method} ({withdrawal.accountType})</p><p className="mt-1 font-mono text-xs text-neutral-500">{withdrawal.accountNumber}</p><p className="mt-1 text-[11px] text-neutral-500">Available now: ${Number(withdrawal.availableBalance || 0).toFixed(2)} · {new Date(withdrawal.createdAt).toLocaleString()}</p></div>
+          <div className="flex gap-2"><button onClick={() => processWithdrawal(withdrawal, 'reject')} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Reject</button><button disabled={!withdrawal.commissionLedgerIds?.length} onClick={() => processWithdrawal(withdrawal, 'approve')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-40">Approve payout</button></div>
+        </article>)}</div>}
+      </section>}
+    </main>
+  </div>;
+}
 
-                  {/* 🖥️ DESKTOP TABLE VIEW */}
-                  <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
-                          <th className="px-6 py-4">Affiliate Info</th>
-                          <th className="px-6 py-4">Payment Method</th>
-                          <th className="px-6 py-4">Account Details</th>
-                          <th className="px-6 py-4">Amount</th>
-                          <th className="px-6 py-4">Date</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100 text-xs">
-                        {withdrawals.map((withdrawal) => (
-                          <tr key={withdrawal._id} className="hover:bg-neutral-50/30 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-bold text-neutral-950">{withdrawal.affiliateId?.name || 'Unknown'}</div>
-                              <div className="text-neutral-400 text-[11px] font-mono mt-0.5">{withdrawal.affiliateId?.email}</div>
-                              <div className="text-neutral-500 text-[11px] mt-0.5">{withdrawal.affiliateId?.phone || 'N/A'}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-neutral-900">{withdrawal.method}</div>
-                              <div className="text-[10px] text-neutral-400 mt-0.5">{withdrawal.accountType} Account</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="font-mono text-[11px] text-neutral-700 bg-neutral-50 px-2 py-1 rounded border border-neutral-200">
-                                {withdrawal.accountNumber}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 font-black text-neutral-950 text-sm">${withdrawal.amount.toFixed(2)}</td>
-                            <td className="px-6 py-4 text-[11px] text-neutral-600">
-                              {new Date(withdrawal.createdAt).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              {withdrawal.status === 'Pending' ? (
-                                <div className="flex gap-2 justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApproveWithdrawal(withdrawal._id)}
-                                    disabled={processingId !== null}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] inline-flex items-center gap-1 shadow-sm disabled:opacity-40"
-                                  >
-                                    <CheckCircle size={12} /> {processingId === withdrawal._id ? '...' : 'Approve'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRejectWithdrawal(withdrawal._id)}
-                                    disabled={processingId !== null}
-                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] inline-flex items-center gap-1 shadow-sm disabled:opacity-40"
-                                  >
-                                    <XCircle size={12} /> {processingId === withdrawal._id ? '...' : 'Reject'}
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg ${
-                                  withdrawal.status === 'Approved' 
-                                    ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' 
-                                    : 'text-red-600 bg-red-50 border border-red-100'
-                                }`}>
-                                  {withdrawal.status === 'Approved' ? <CheckCircle size={12}/> : <XCircle size={12}/>}
-                                  {withdrawal.status}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+function Field({ label, value, onChange, type = 'text', min, step, required = false }) {
+  return <label className="block text-[10px] font-semibold text-neutral-500">{label}<input required={required} type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border bg-white px-2.5 py-2 text-xs text-neutral-900 outline-none focus:border-neutral-500" /></label>;
+}
 
-        {/* CONDITION 2: GOOGLE SHEET ORDER MANAGEMENT MATRIX VIEWPORT */}
-        {activeTab === 'orders' && (
-          <div className="space-y-6">
-            <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Order Synchronization Desk</h1>
-                <p className="text-xs sm:text-sm text-neutral-500 mt-1">Cross-reference active creator pipelines and release balances.</p>
-              </div>
-              <button 
-                type="button" onClick={fetchAllOrders} disabled={loadingOrders}
-                className="flex items-center justify-center gap-1.5 bg-neutral-200/70 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all disabled:opacity-50 self-start sm:self-auto shrink-0"
-              >
-                <RefreshCw size={13} className={loadingOrders ? 'animate-spin' : ''} /> Sync Pipeline
-              </button>
-            </header>
+function WebhookDetails({ product, copied, onCopy, onRotate }) {
+  const webhookUrl = `${window.location.origin}/api/webhooks/saas/${product.slug}`;
+  return <section className="mt-6 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+    <div className="mb-3"><h4 className="text-sm font-bold">Webhook connection details</h4><p className="mt-1 text-[11px] text-neutral-600">Keep the secret on your SaaS server. Never expose it in browser code.</p></div>
+    <CopyField label="Webhook endpoint" value={webhookUrl} copied={copied === `url-${product._id}`} onCopy={() => onCopy(`url-${product._id}`, webhookUrl)} />
+    <CopyField label="Webhook secret" value={product.webhookSecret || ''} copied={copied === `secret-${product._id}`} onCopy={() => onCopy(`secret-${product._id}`, product.webhookSecret || '')} />
+    <button onClick={() => onRotate(product)} className="mt-3 text-[11px] font-bold text-red-700 underline">Rotate webhook secret</button>
+  </section>;
+}
 
-            {/* LIVE METRICS TRACKER HUD ROW */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white border border-neutral-200 p-4 rounded-xl flex items-center gap-3 shadow-sm">
-                <div className="p-2 bg-neutral-100 rounded-lg text-neutral-900"><ShoppingBag size={15}/></div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">Total Rows</span>
-                  <span className="text-base font-black text-neutral-950">{totalOrders} Rows</span>
-                </div>
-              </div>
-              <div className="bg-white border border-amber-200 p-4 rounded-xl flex items-center gap-3 shadow-sm bg-amber-50/5">
-                <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Truck size={15}/></div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-amber-600 block tracking-wider">In Transit</span>
-                  <span className="text-base font-black text-amber-600">{onWayCount} Packages</span>
-                </div>
-              </div>
-              <div className="bg-white border border-emerald-200 p-4 rounded-xl flex items-center gap-3 shadow-sm bg-emerald-50/5">
-                <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><CheckCircle2 size={15}/></div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-emerald-700 block tracking-wider">Delivered Complete</span>
-                  <span className="text-base font-black text-emerald-700">{deliveredCount} Cleared</span>
-                </div>
-              </div>
-            </div>
-
-            {/* MAIN FILTERABLE DATA SHEET OVERLAY */}
-            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
-              
-              {/* TOOLBAR */}
-              <div className="p-4 border-b border-neutral-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-neutral-50/30">
-                <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                  <input 
-                    type="text" placeholder="Search customer, item, or code..." value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-neutral-200 rounded-xl focus:outline-none focus:border-black font-medium"
-                  />
-                </div>
-
-                <div className="flex bg-neutral-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto overflow-x-auto">
-                  {['All', 'On Way', 'Delivered'].map((filter) => (
-                    <button
-                      key={filter} type="button" onClick={() => setStatusFilter(filter)}
-                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${statusFilter === filter ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}
-                    >
-                      {filter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SHEET MATRIX TABLE ENTRY CONTAINER */}
-              {loadingOrders ? (
-                <div className="p-12 text-center text-xs text-neutral-400 font-bold tracking-wide animate-pulse">Pulling live Google Sheet entries...</div>
-              ) : filteredOrders.length === 0 ? (
-                <div className="p-12 text-center text-xs text-neutral-400 font-semibold">No order rows matched your filter query.</div>
-              ) : (
-                <div className="w-full">
-                  
-                  {/* 📱 MOBILE CARDS GRID VIEW (Visible on small/tablet devices) */}
-                  <div className="block lg:hidden divide-y divide-neutral-100">
-                    {filteredOrders.map((order, idx) => {
-                      const isDelivered = (order.deliveryStatus || 'On Way').toLowerCase() === 'delivered';
-                      return (
-                        <div key={idx} className="p-4 space-y-3 bg-white text-xs">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-bold text-neutral-950 text-sm leading-tight">{order.productName}</h4>
-                              <p className="text-[10px] text-neutral-400 font-mono mt-0.5">ID: {order.productId}</p>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-black text-neutral-950 text-sm block">৳{parseFloat(order.totalPrice || order.price).toFixed(2)}</span>
-                              <span className="text-[10px] text-neutral-500">Qty: {order.quantity || 1}</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1 text-neutral-600">
-                            <p><b>Customer:</b> {order.customerName}</p>
-                            <p className="font-mono text-[11px] text-neutral-500">{order.customerPhone}</p>
-                            <p className="text-neutral-500 text-[11px] pt-1 border-t border-neutral-200/40 mt-1"><b>Address:</b> {order.shippingAddress}</p>
-                          </div>
-
-                          <div className="flex justify-between items-center gap-2 pt-1">
-                            <span className="bg-neutral-100 text-neutral-800 font-mono font-bold px-2 py-0.5 rounded text-[10px] border">
-                              Code: {order.referralCode}
-                            </span>
-                            {isDelivered ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
-                                <CheckCircle2 size={12}/> Complete
-                              </span>
-                            ) : (
-                              <button
-                                type="button" onClick={() => handleMarkAsDelivered(order, idx)} disabled={updatingId !== null}
-                                className="bg-black hover:bg-neutral-900 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] disabled:opacity-40 shadow-sm"
-                              >
-                                {updatingId === idx ? 'Syncing...' : 'Mark Delivered'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* 🖥️ DESKTOP MASTER TABLE VIEW (Visible on desktop screens) */}
-                  <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
-                          <th className="px-6 py-4">Customer Info</th>
-                          <th className="px-6 py-4">Item Details</th>
-                          <th className="px-6 py-4">Total Amount</th>
-                          <th className="px-6 py-4">Tracking Code</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100 text-xs">
-                        {filteredOrders.map((order, idx) => {
-                          const isDelivered = (order.deliveryStatus || 'On Way').toLowerCase() === 'delivered';
-                          return (
-                            <tr key={idx} className="hover:bg-neutral-50/30 transition-colors">
-                              <td className="px-6 py-4 max-w-[220px]">
-                                <div className="font-bold text-neutral-950">{order.customerName}</div>
-                                <div className="text-neutral-400 text-[11px] font-mono mt-0.5">{order.customerPhone}</div>
-                                <div className="text-neutral-500 text-[11px] truncate mt-1" title={order.shippingAddress}>{order.shippingAddress}</div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="font-semibold text-neutral-900 leading-tight">{order.productName}</div>
-                                <div className="text-[10px] text-neutral-400 font-mono mt-0.5">ID: {order.productId}</div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="bg-neutral-100 text-neutral-800 font-mono font-bold px-2 py-0.5 rounded text-[11px] border">
-                                  {order.referralCode}
-                                </span>
-                              </td>
-                          <td className="px-6 py-4">
-                            <div className="font-black text-neutral-950">৳{parseFloat(order.totalPrice || order.price).toFixed(2)}</div>
-                            <div className="text-[10px] text-neutral-500 mt-0.5">Qty: {order.quantity || 1}</div>
-                          </td>
-                              <td className="px-6 py-4 text-right">
-                                {isDelivered ? (
-                                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
-                                    <CheckCircle2 size={12}/> Complete
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button" onClick={() => handleMarkAsDelivered(order, idx)} disabled={updatingId !== null}
-                                    className="bg-black hover:bg-neutral-900 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-[11px] inline-flex items-center gap-1 shadow-sm disabled:opacity-40"
-                                  >
-                                    {updatingId === idx ? 'Syncing...' : 'Mark Delivered'}
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
+function CopyField({ label, value, copied, onCopy }) {
+  return <div className="mt-2"><label className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{label}</label><div className="mt-1 flex gap-2"><input readOnly type="text" value={value} className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-2 font-mono text-[10px]" /><button onClick={onCopy} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-neutral-950 px-2.5 text-[10px] font-bold text-white">{copied ? <Check size={12} /> : <Copy size={12} />}{copied ? 'Copied' : 'Copy'}</button></div></div>;
 }

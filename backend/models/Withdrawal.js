@@ -7,7 +7,7 @@ const WithdrawalSchema = new mongoose.Schema({
     required: true
   },
   amount: {
-    type: Number,
+    type: mongoose.Schema.Types.Decimal128,
     required: true,
     min: [10, 'Minimum withdrawal amount is $10']
   },
@@ -31,6 +31,12 @@ const WithdrawalSchema = new mongoose.Schema({
     enum: ['Pending', 'Approved', 'Rejected'],
     default: 'Pending'
   },
+  commissionLedgerIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CommissionLedger',
+  }],
+  approvedAt: { type: Date, default: null },
+  rejectedAt: { type: Date, default: null },
   createdAt: {
     type: Date,
     default: Date.now

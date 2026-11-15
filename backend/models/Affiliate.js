@@ -31,20 +31,7 @@ const affiliateSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
-    balance: {
-      pendingBalance: {
-        type: Number,
-        default: 0,
-      },
-      withdrawableBalance: {
-        type: Number,
-        default: 0,
-      },
-      totalEarned: {
-        type: Number,
-        default: 0,
-      },
-    },
+    payoutLockVersion: { type: Number, default: 0 },
   },
   {
     timestamps: true, // Automatically manages createdAt and updatedAt values

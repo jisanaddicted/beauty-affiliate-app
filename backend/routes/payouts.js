@@ -1,75 +1,120 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import { protect } from '../middleware/authMiddleware.js';
+import Affiliate from '../models/Affiliate.js';
+import CommissionLedger from '../models/CommissionLedger.js';
+import Withdrawal from '../models/Withdrawal.js';
+import { decimalFrom, getAffiliateCommissionSummary, processMaturedCommissions } from '../services/commissionService.js';
+import { serializeWithdrawal } from '../utils/serializers.js';
+
 const router = express.Router();
 
-// 💡 Fix: Point to the exact filename 'authMiddleware.js' inside your folder
-import { protect } from '../middleware/authMiddleware.js'; 
-
-import Affiliate from '../models/Affiliate.js';      
-import Withdrawal from '../models/Withdrawal.js';    
-
-// 💳 1. Submit a withdrawal request
 router.post('/withdraw', protect, async (req, res) => {
+  const amount = Number(req.body.amount);
+  if (!Number.isFinite(amount) || amount < 10) {
+    return res.status(400).json({ message: 'Minimum withdrawal request amount is 10.' });
+  }
+
+  const roundedAmount = Math.round((amount + Number.EPSILON) * 100) / 100;
+  const session = await mongoose.startSession();
   try {
-    const { amount, method, accountType, accountNumber } = req.body;
-    const numericAmount = parseFloat(amount);
+    let result;
+    await session.withTransaction(async () => {
+      const affiliate = await Affiliate.findByIdAndUpdate(
+        req.user._id,
+        { $inc: { payoutLockVersion: 1 } },
+        { new: true, session }
+      );
+      if (!affiliate) throw Object.assign(new Error('Affiliate account not found.'), { status: 404 });
 
-    if (!numericAmount || numericAmount < 10) {
-      return res.status(400).json({ message: 'Minimum withdrawal amount is 10.' });
-    }
+      await processMaturedCommissions(session);
+      const summary = await getAffiliateCommissionSummary(affiliate._id, session);
+      if (roundedAmount > summary.availableBalance + 0.000001) {
+        throw Object.assign(new Error('Requested amount exceeds the available commission balance.'), { status: 400 });
+      }
 
-    const affiliate = await Affiliate.findById(req.user.id);
-    if (!affiliate) {
-      return res.status(404).json({ message: 'Affiliate account not found.' });
-    }
+      const pendingWithdrawals = await Withdrawal.find({ affiliateId: affiliate._id, status: 'Pending' })
+        .select('commissionLedgerIds')
+        .session(session);
+      const reservedIds = new Set(pendingWithdrawals.flatMap((withdrawal) => withdrawal.commissionLedgerIds.map(String)));
+      const availableEntries = await CommissionLedger.find({ affiliateId: affiliate._id, status: 'available' })
+        .sort({ createdAt: 1 })
+        .session(session);
 
-    if (affiliate.balance.withdrawableBalance < numericAmount) {
-      return res.status(400).json({ message: 'Insufficient withdrawable balance.' });
-    }
+      const withdrawalId = new mongoose.Types.ObjectId();
+      const commissionLedgerIds = [];
+      let remaining = roundedAmount;
 
-    affiliate.balance.withdrawableBalance -= numericAmount;
-    affiliate.balance.pendingBalance += numericAmount;
-    await affiliate.save();
+      for (const entry of availableEntries) {
+        if (remaining <= 0.000001) break;
+        if (reservedIds.has(String(entry._id))) continue;
 
-    const withdrawal = new Withdrawal({
-      affiliateId: req.user.id,
-      amount: numericAmount,
-      method,
-      accountType,
-      accountNumber
+        const entryAmount = Number(entry.amount.toString());
+        if (entryAmount <= remaining + 0.000001) {
+          commissionLedgerIds.push(entry._id);
+          remaining = Math.round((remaining - entryAmount + Number.EPSILON) * 100) / 100;
+          continue;
+        }
+
+        const splitAmount = remaining;
+        entry.amount = decimalFrom(entryAmount - splitAmount);
+        await entry.save({ session });
+        const [splitEntry] = await CommissionLedger.create([{
+          affiliateId: entry.affiliateId,
+          saasProductId: entry.saasProductId,
+          referralId: entry.referralId,
+          referredUserId: entry.referredUserId,
+          type: entry.type,
+          planId: entry.planId,
+          amount: decimalFrom(splitAmount),
+          status: 'available',
+          unlocksAt: entry.unlocksAt,
+          idempotencyKey: `withdrawal-split:${withdrawalId}:${entry._id}`,
+          splitFromLedgerId: entry._id,
+        }], { session });
+        commissionLedgerIds.push(splitEntry._id);
+        remaining = 0;
+      }
+
+      if (remaining > 0.000001) {
+        throw Object.assign(new Error('Available commission entries could not be reserved for this withdrawal.'), { status: 409 });
+      }
+
+      const [withdrawal] = await Withdrawal.create([{
+        _id: withdrawalId,
+        affiliateId: affiliate._id,
+        commissionLedgerIds,
+        amount: decimalFrom(roundedAmount),
+        method: req.body.method,
+        accountType: req.body.accountType,
+        accountNumber: req.body.accountNumber,
+      }], { session });
+
+      result = {
+        message: 'Withdrawal request submitted successfully.',
+        withdrawal: serializeWithdrawal(withdrawal),
+        summary: await getAffiliateCommissionSummary(affiliate._id, session),
+      };
     });
-    await withdrawal.save();
 
-    return res.status(201).json({ 
-      message: 'Withdrawal request submitted successfully!',
-      updatedBalance: affiliate.balance 
-    });
-
-   } catch (err) {
-     console.error("🔥 Error processing payout:", err);
-     
-     // Handle Mongoose validation errors
-     if (err.name === 'ValidationError') {
-       const validationErrors = Object.values(err.errors).map(e => e.message);
-       return res.status(400).json({ 
-         message: validationErrors[0] || 'Validation failed. Please check your input.'
-       });
-     }
-     
-     return res.status(400).json({ 
-       message: err.message || 'Server error tracking transaction request.' 
-     });
-   }
-});
-
-// 📋 2. Fetch withdrawal history
-router.get('/history', protect, async (req, res) => {
-  try {
-    const logs = await Withdrawal.find({ affiliateId: req.user.id }).sort({ createdAt: -1 });
-    return res.json(logs);
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error retrieving log layers.' });
+    return res.status(201).json(result);
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: Object.values(error.errors)[0]?.message || 'Withdrawal validation failed.' });
+    }
+    return res.status(error.status || 400).json({ message: error.message || 'Failed to submit withdrawal.' });
+  } finally {
+    await session.endSession();
   }
 });
 
-// 🚀 CRITICAL FIX: This supplies the default export that server.js is looking for
+router.get('/history', protect, async (req, res) => {
+  try {
+    const logs = await Withdrawal.find({ affiliateId: req.user._id }).sort({ createdAt: -1 });
+    return res.json(logs.map(serializeWithdrawal));
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to retrieve withdrawal history.' });
+  }
+});
+
 export default router;

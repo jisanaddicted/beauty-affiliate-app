@@ -3,6 +3,6 @@ import { trackAffiliateClick } from '../controllers/clickController.js';
 
 const router = express.Router();
 
-router.get('/', trackAffiliateClick);
+router.get(['/', '/:slug'], trackAffiliateClick);
 
 export default router;

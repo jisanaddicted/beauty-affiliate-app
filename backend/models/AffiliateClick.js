@@ -8,6 +8,12 @@ const affiliateClickSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    saasProductId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SaasProduct',
+      required: true,
+      index: true,
+    },
     ipAddress: { type: String, default: '' },
     userAgent: { type: String, default: '' },
     referer: { type: String, default: '' },

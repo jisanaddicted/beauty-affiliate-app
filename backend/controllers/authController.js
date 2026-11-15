@@ -64,7 +64,6 @@ export const registerAffiliate = async (req, res) => {
         name: newAffiliate.name,
         email: newAffiliate.email,
         affiliateCode: newAffiliate.affiliateCode,
-        balance: newAffiliate.balance
       }
     });
 
@@ -108,8 +107,7 @@ export const loginAffiliate = async (req, res) => {
         id: affiliate._id,
         name: affiliate.name,
         email: affiliate.email,
-        affiliateCode: affiliate.affiliateCode,
-        balance: affiliate.balance
+        affiliateCode: affiliate.affiliateCode
       }
     });
 
