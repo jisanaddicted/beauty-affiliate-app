@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, ArrowUpRight, LayoutDashboard, Link2, LogOut, LockKeyhole, Mail, Store, Users, Wallet } from 'lucide-react';
+import { Activity, ArrowUpRight, LayoutDashboard, Link2, LogOut, LockKeyhole, Mail, Store, UserRound, Users, Wallet } from 'lucide-react';
 import MarketplaceTab from './MarketplaceTab.jsx';
 import PayoutsTab from './PayoutsTab.jsx';
 import AnalyticsTab from './AnalyticsTab.jsx';
 import SmartlinksTab from './SmartlinksTab.jsx';
 import TeamTab from './TeamTab.jsx';
+import TeamProfileTab from './TeamProfileTab.jsx';
+import SmartlinkAssignmentModal from './SmartlinkAssignmentModal.jsx';
 
 const emptySummary = { lockedBalance: 0, pendingClearance: 0, availableBalance: 0, totalPaid: 0, totalEarned: 0 };
 
@@ -22,7 +24,7 @@ export default function App() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState('');
-  const [defaultTeamMemberId, setDefaultTeamMemberId] = useState('');
+  const [showProfileSmartlink, setShowProfileSmartlink] = useState(false);
   const [affiliate, setAffiliate] = useState({ name: '', email: '', affiliateCode: '', totalClicks: 0 });
   const [summary, setSummary] = useState(emptySummary);
 
@@ -81,7 +83,7 @@ export default function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     if ((activeTab === 'dashboard' || activeTab === 'payouts') && affiliate.permissions?.canViewEarnings !== false) fetchSummary();
-    if (activeTab === 'marketplace' || activeTab === 'smartlinks') fetchProducts();
+    if (activeTab === 'marketplace' || activeTab === 'smartlinks' || (activeTab === 'team' && affiliate.permissions?.canCreateSmartlinks) || (activeTab === 'dashboard' && affiliate.role === 'team_member' && affiliate.permissions?.canCreateSmartlinks) || activeTab === 'profile') fetchProducts();
     if (activeTab === 'team' || (activeTab === 'smartlinks' && (affiliate.role !== 'team_member' || affiliate.permissions?.canManageTeam))) fetchTeamMembers();
   }, [isLoggedIn, activeTab, fetchProducts, fetchSummary, fetchTeamMembers, affiliate.role, affiliate.permissions]);
 
@@ -110,7 +112,7 @@ export default function App() {
     setAffiliate({ name: '', email: '', affiliateCode: '', totalClicks: 0 });
     setTeamMembers([]);
     setTeamError('');
-    setDefaultTeamMemberId('');
+    setShowProfileSmartlink(false);
   };
 
   const role = affiliate.role || 'affiliate';
@@ -119,7 +121,8 @@ export default function App() {
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard, visible: role === 'affiliate' || permissions.canViewOverview },
     { id: 'marketplace', label: 'SaaS marketplace', icon: Store, visible: role === 'affiliate' },
     { id: 'analytics', label: 'SaaS analytics', icon: Activity, visible: role === 'affiliate' || permissions.canViewAnalytics },
-    { id: 'smartlinks', label: 'Smartlinks', icon: Link2, visible: role === 'affiliate' || permissions.canViewOverview || permissions.canCreateSmartlinks },
+      { id: 'smartlinks', label: 'Smartlinks', icon: Link2, visible: role === 'affiliate' || permissions.canViewAnalytics },
+    { id: 'profile', label: 'My profile', icon: UserRound, visible: role === 'team_member' && permissions.canCreateSmartlinks },
     { id: 'team', label: 'My team', icon: Users, visible: role === 'affiliate' || permissions.canManageTeam },
     { id: 'payouts', label: 'Payouts', icon: Wallet, visible: role === 'affiliate' || permissions.canRequestPayouts },
   ].filter((item) => item.visible);
@@ -182,14 +185,17 @@ export default function App() {
             {permissions.canViewAnalytics && <QuickLink title="Open analytics" detail="Review clicks, signups, upgrades, and earnings." onClick={() => setActiveTab('analytics')} />}
             {permissions.canManageTeam && <QuickLink title="Manage your team" detail="Review team access and performance." onClick={() => setActiveTab('team')} />}
             {permissions.canRequestPayouts && <QuickLink title="Manage payouts" detail="Review your withdrawal requests and history." onClick={() => setActiveTab('payouts')} />}
+            {role === 'team_member' && permissions.canCreateSmartlinks && <QuickLink title="Generate my smartlink" detail="Create a campaign link assigned to your profile." onClick={() => setShowProfileSmartlink(true)} />}
           </div>
         </section>
       </>}
       {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
       {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} />}
-      {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} products={products} teamMembers={teamMembers} defaultTeamMemberId={defaultTeamMemberId} canCreate={permissions.canCreateSmartlinks} onClearDefault={() => setDefaultTeamMemberId('')} />}
-      {activeTab === 'team' && <TeamTab token={localStorage.getItem('token')} members={teamMembers} loading={teamLoading} error={teamError} onRefresh={fetchTeamMembers} onCreateSmartlink={(memberId) => { setDefaultTeamMemberId(memberId); setActiveTab('smartlinks'); }} isAffiliate={role === 'affiliate'} currentPermissions={permissions} canViewEarnings={permissions.canViewEarnings} />}
+      {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} canFilterTeam={role === 'affiliate' || !permissions.canViewOwnSmartlinksOnly} />}
+      {activeTab === 'profile' && role === 'team_member' && <TeamProfileTab token={localStorage.getItem('token')} profile={affiliate} products={products} />}
+      {activeTab === 'team' && <TeamTab token={localStorage.getItem('token')} members={teamMembers} loading={teamLoading} error={teamError} onRefresh={fetchTeamMembers} products={products} isAffiliate={role === 'affiliate'} currentPermissions={permissions} canViewEarnings={permissions.canViewEarnings} />}
       {activeTab === 'payouts' && <PayoutsTab summary={summary} onSummaryUpdate={setSummary} />}
+      {showProfileSmartlink && role === 'team_member' && <SmartlinkAssignmentModal token={localStorage.getItem('token')} products={products} teamMemberId={affiliate.id} teamMemberName={affiliate.name} onClose={() => setShowProfileSmartlink(false)} />}
     </main>
   </div>;
 }

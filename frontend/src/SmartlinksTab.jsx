@@ -1,107 +1,107 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Check, Copy, Link2, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, RefreshCw } from 'lucide-react';
 
-const headers = (token) => ({ Authorization: `Bearer ${token}` });
-const emptyForm = { name: '', saasProductId: '', teamMemberId: '', destinationUrl: '' };
+const today = () => new Date().toISOString().slice(0, 10);
+const daysAgo = (days) => {
+  const value = new Date();
+  value.setDate(value.getDate() - days);
+  return value.toISOString().slice(0, 10);
+};
+const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
+const money = (amount) => `$${Number(amount || 0).toFixed(2)}`;
 
-export default function SmartlinksTab({ token, products, teamMembers, defaultTeamMemberId, onClearDefault, canCreate }) {
-  const [items, setItems] = useState([]);
-  const [search, setSearch] = useState('');
+export default function SmartlinksTab({ token, canViewEarnings = true, canFilterTeam = true }) {
+  const [filters, setFilters] = useState({ startDate: daysAgo(29), endDate: today(), saasProductId: 'all', teamMemberId: 'all' });
+  const [range, setRange] = useState('30');
+  const [sort, setSort] = useState({ sortBy: 'clicks', sortOrder: 'desc' });
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState('');
 
-  const loadItems = useCallback(async () => {
+  const params = useMemo(() => ({ ...filters, ...sort, page, limit: 10 }), [filters, sort, page]);
+  const loadPerformance = useCallback(async () => {
     setLoading(true);
-    try {
-      const response = await axios.get('/api/affiliates/smartlinks', { params: { search, limit: 50 }, headers: headers(token) });
-      setItems(response.data.items || []);
-      setError('');
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Could not load smartlinks.');
-    } finally { setLoading(false); }
-  }, [search, token]);
-
-  useEffect(() => { loadItems(); }, [loadItems]);
-  useEffect(() => {
-    if (!defaultTeamMemberId) return;
-    setForm((current) => ({ ...current, teamMemberId: defaultTeamMemberId }));
-    setEditItem(null);
-    setModalOpen(true);
-    onClearDefault?.();
-  }, [defaultTeamMemberId, onClearDefault]);
-
-  const openCreate = () => { setEditItem(null); setForm({ ...emptyForm, saasProductId: products[0]?._id || '', teamMemberId: '' }); setModalOpen(true); };
-  const openEdit = (item) => {
-    setEditItem(item);
-    setForm({ name: item.name, saasProductId: item.saasProductId?._id || '', teamMemberId: item.assignedTeamMemberId?._id || '', destinationUrl: item.destinationUrl || '' });
-    setModalOpen(true);
-  };
-
-  const submit = async (event) => {
-    event.preventDefault();
-    setSaving(true);
     setError('');
     try {
-      if (editItem) {
-        await axios.put(`/api/affiliates/smartlinks/${editItem._id}`, { name: form.name, destinationUrl: form.destinationUrl, teamMemberId: form.teamMemberId || null }, { headers: headers(token) });
-      } else {
-        await axios.post('/api/affiliates/smartlinks', { name: form.name, saasProductId: form.saasProductId, teamMemberId: form.teamMemberId || undefined }, { headers: headers(token) });
-      }
-      setModalOpen(false);
-      await loadItems();
+      const response = await axios.get('/api/affiliates/smartlinks/performance', { params, headers: authHeaders(token) });
+      setData(response.data);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Could not save the smartlink.');
-    } finally { setSaving(false); }
-  };
+      setError(requestError.response?.data?.message || 'Could not load smartlink performance.');
+    } finally { setLoading(false); }
+  }, [params, token]);
+  useEffect(() => { loadPerformance(); }, [loadPerformance]);
 
-  const toggleStatus = async (item) => {
-    try {
-      await axios.put(`/api/affiliates/smartlinks/${item._id}`, { status: item.status === 'active' ? 'paused' : 'active' }, { headers: headers(token) });
-      await loadItems();
-    } catch (requestError) { setError(requestError.response?.data?.message || 'Could not update smartlink status.'); }
+  const setQuickRange = (value) => {
+    setRange(value);
+    if (value === 'custom') return;
+    const startDate = value === '7' ? daysAgo(6) : daysAgo(29);
+    setPage(1);
+    setFilters((current) => ({ ...current, startDate, endDate: today() }));
   };
-
-  const remove = async (item) => {
-    if (!window.confirm(`Delete campaign “${item.name}”?`)) return;
-    try {
-      await axios.delete(`/api/affiliates/smartlinks/${item._id}`, { headers: headers(token) });
-      await loadItems();
-    } catch (requestError) { setError(requestError.response?.data?.message || 'Could not delete the smartlink.'); }
+  const updateFilter = (key, value) => {
+    setPage(1);
+    setFilters((current) => ({ ...current, [key]: value }));
   };
-
-  const copyLink = async (item) => {
-    const url = new URL(`/s/${encodeURIComponent(item.code)}`, window.location.origin).toString();
+  const toggleSort = (sortBy) => {
+    setPage(1);
+    setSort((current) => ({ sortBy, sortOrder: current.sortBy === sortBy && current.sortOrder === 'desc' ? 'asc' : 'desc' }));
+  };
+  const copyLink = async (row) => {
+    const url = new URL(row.shortUrlPath || `/s/${encodeURIComponent(row.code)}`, window.location.origin).toString();
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(item._id);
+      setCopied(row._id);
       window.setTimeout(() => setCopied(''), 1600);
     } catch { setError(`Copy this link: ${url}`); }
   };
 
+  const summary = data?.summary || {};
+  const rows = data?.items || [];
+  const totalPages = Math.max(1, data?.totalPages || 0);
+
   return <div className="space-y-5">
-    <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><div><h2 className="text-lg font-bold">Smartlinks</h2><p className="mt-1 text-sm text-neutral-500">Create campaign links, assign team members, and follow performance.</p></div>{canCreate && <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-neutral-800"><Plus size={16} />Create smartlink</button>}</section>
-    {error && <p role="alert" className="break-all rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-      <div className="border-b border-neutral-100 p-4"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns…" className="w-full max-w-sm rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-neutral-500" /></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500"><tr><th className="px-5 py-3">Campaign</th><th className="px-5 py-3">Target SaaS</th><th className="px-5 py-3">Short link</th><th className="px-5 py-3">Assigned member</th><th className="px-5 py-3 text-right">Clicks</th><th className="px-5 py-3 text-right">Conversions</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Actions</th></tr></thead><tbody className="divide-y divide-neutral-100">
-        {!loading && items.map((item) => <tr key={item._id} className="hover:bg-neutral-50"><td className="px-5 py-4 font-semibold">{item.name}</td><td className="px-5 py-4">{item.saasProductId?.name || 'Product unavailable'}</td><td className="px-5 py-4"><div className="flex items-center gap-2"><span className="max-w-[170px] truncate font-mono text-xs text-neutral-500">{new URL(`/s/${item.code}`, window.location.origin).toString()}</span><button onClick={() => copyLink(item)} title="Copy smartlink" className="rounded-md p-1.5 hover:bg-neutral-200">{copied === item._id ? <Check size={14} /> : <Copy size={14} />}</button></div></td><td className="px-5 py-4">{item.assignedTeamMemberId?.name || '—'}</td><td className="px-5 py-4 text-right">{item.stats?.clicks || 0}</td><td className="px-5 py-4 text-right">{item.stats?.conversions || 0}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-600'}`}>{item.status}</span></td><td className="px-5 py-4"><div className="flex gap-1">{canCreate && <><button onClick={() => toggleStatus(item)} title={item.status === 'active' ? 'Pause' : 'Activate'} className="rounded-lg p-2 hover:bg-neutral-100">{item.status === 'active' ? <Pause size={15} /> : <Play size={15} />}</button><button onClick={() => openEdit(item)} title="Edit" className="rounded-lg p-2 hover:bg-neutral-100"><Pencil size={15} /></button><button onClick={() => remove(item)} title="Delete" className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button></>}</div></td></tr>)}
-        {!loading && items.length === 0 && <tr><td colSpan="8" className="px-5 py-12 text-center text-neutral-500">{search ? 'No matching campaigns found.' : 'You have not created a smartlink yet.'}</td></tr>}
-        {loading && <tr><td colSpan="8" className="px-5 py-12 text-center text-neutral-500">Loading smartlinks…</td></tr>}
-      </tbody></table></div>
+    <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Smartlink performance</h2><p className="mt-1 text-sm text-neutral-500">Compare campaign traffic and conversions. Link assignment is managed from team profiles.</p></div><button onClick={loadPerformance} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Refresh</button></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <label className="text-xs font-semibold text-neutral-500">Date range<select value={range} onChange={(event) => setQuickRange(event.target.value)} className="mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-neutral-900"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="custom">Custom range</option></select></label>
+        <label className="text-xs font-semibold text-neutral-500">SaaS product<select value={filters.saasProductId} onChange={(event) => updateFilter('saasProductId', event.target.value)} className="mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-neutral-900"><option value="all">All products</option>{(data?.products || []).map((product) => <option key={product._id} value={product._id}>{product.name}</option>)}</select></label>
+        <label className="text-xs font-semibold text-neutral-500">Team member<select disabled={!canFilterTeam} value={data?.filters?.teamMemberId || filters.teamMemberId} onChange={(event) => updateFilter('teamMemberId', event.target.value)} className="mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-neutral-900 disabled:bg-neutral-50"><option value="all">All team members</option>{(data?.teamMembers || []).map((member) => <option key={member._id} value={member._id}>{member.name}</option>)}</select></label>
+        <label className="text-xs font-semibold text-neutral-500">Start date<input type="date" value={filters.startDate} onChange={(event) => { setRange('custom'); updateFilter('startDate', event.target.value); }} className="mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm text-neutral-900" /></label>
+        <label className="text-xs font-semibold text-neutral-500">End date<input type="date" value={filters.endDate} onChange={(event) => { setRange('custom'); updateFilter('endDate', event.target.value); }} className="mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm text-neutral-900" /></label>
+      </div>
     </section>
 
-    {modalOpen && canCreate && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}><form onSubmit={submit} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div><h3 className="text-lg font-bold">{editItem ? 'Edit smartlink' : 'Create smartlink'}</h3><p className="mt-1 text-sm text-neutral-500">{editItem ? 'Update campaign settings or team assignment.' : 'Choose a product and optionally assign the campaign to a team member.'}</p></div>
-      <label className="block text-xs font-semibold text-neutral-600">Campaign name<input required maxLength="100" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm" placeholder="Spring launch campaign" /></label>
-      {!editItem && <label className="block text-xs font-semibold text-neutral-600">SaaS product<select required value={form.saasProductId} onChange={(event) => setForm({ ...form, saasProductId: event.target.value })} className="mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-sm"><option value="">Select a product</option>{products.map((product) => <option key={product._id} value={product._id}>{product.name}</option>)}</select></label>}
-      <label className="block text-xs font-semibold text-neutral-600">Assign team member (optional)<select value={form.teamMemberId} onChange={(event) => setForm({ ...form, teamMemberId: event.target.value })} className="mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-sm"><option value="">No team member</option>{teamMembers.filter((member) => member.status === 'active').map((member) => <option key={member._id} value={member._id}>{member.name} · {member.subAffiliateCode}</option>)}</select></label>
-      {editItem && <label className="block text-xs font-semibold text-neutral-600">Destination URL override (optional)<input type="url" value={form.destinationUrl} onChange={(event) => setForm({ ...form, destinationUrl: event.target.value })} className="mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm" placeholder="Uses the SaaS product destination when blank" /></label>}
-      <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border px-4 py-2 text-sm font-semibold">Cancel</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-neutral-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Link2 size={15} />{saving ? 'Saving…' : editItem ? 'Save changes' : 'Create smartlink'}</button></div>
-    </form></div>}
+    {error && <p role="alert" className="break-all rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+
+    <section className={`grid gap-4 sm:grid-cols-2 ${canViewEarnings ? 'xl:grid-cols-6' : 'xl:grid-cols-5'}`}>
+      <Metric title="Clicks" value={loading ? '—' : summary.totalClicks || 0} />
+      <Metric title="Unique visitors" value={loading ? '—' : summary.uniqueVisitors || 0} />
+      <Metric title="Signups" value={loading ? '—' : summary.totalSignups || 0} />
+      <Metric title="Conversions" value={loading ? '—' : summary.totalConversions || 0} />
+      <Metric title="Conversion rate" value={loading ? '—' : `${Number(summary.conversionRate || 0).toFixed(2)}%`} />
+      {canViewEarnings && <Metric title="Total earnings" value={loading ? '—' : money(summary.totalEarnings)} />}
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5"><div><h3 className="font-bold">Campaign performance</h3><p className="mt-1 text-xs text-neutral-500">{data?.total || 0} smartlinks in this view</p></div></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm">
+        <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500"><tr>
+          <th className="px-4 py-3"><SortButton label="Smartlink" active={sort.sortBy === 'name'} onClick={() => toggleSort('name')} /></th><th className="px-4 py-3">Target SaaS</th><th className="px-4 py-3">Team member</th>
+          <th className="px-4 py-3 text-right"><SortButton label="Clicks" active={sort.sortBy === 'clicks'} onClick={() => toggleSort('clicks')} /></th><th className="px-4 py-3 text-right"><SortButton label="Signups" active={sort.sortBy === 'signups'} onClick={() => toggleSort('signups')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversions" active={sort.sortBy === 'conversions'} onClick={() => toggleSort('conversions')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversion rate" active={sort.sortBy === 'conversionRate'} onClick={() => toggleSort('conversionRate')} /></th>{canViewEarnings && <th className="px-4 py-3 text-right"><SortButton label="Earnings" active={sort.sortBy === 'totalEarnings'} onClick={() => toggleSort('totalEarnings')} /></th>}<th className="px-4 py-3">Link</th>
+        </tr></thead>
+        <tbody className="divide-y divide-neutral-100">
+          {!loading && rows.map((row) => <tr key={row._id} className="hover:bg-neutral-50"><td className="px-4 py-4"><span className="block font-semibold">{row.name}</span><span className="mt-1 block font-mono text-[10px] text-neutral-400">/s/{row.code}</span></td><td className="px-4 py-4">{row.saasProduct}</td><td className="px-4 py-4">{row.teamMember}</td><td className="px-4 py-4 text-right">{row.clicks}</td><td className="px-4 py-4 text-right">{row.signups}</td><td className="px-4 py-4 text-right">{row.conversions}</td><td className="px-4 py-4 text-right">{Number(row.conversionRate || 0).toFixed(2)}%</td>{canViewEarnings && <td className="px-4 py-4 text-right font-semibold">{money(row.totalEarnings)}</td>}<td className="px-4 py-4"><button onClick={() => copyLink(row)} className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold hover:bg-neutral-50">{copied === row._id ? <Check size={13} /> : <Copy size={13} />}{copied === row._id ? 'Copied' : 'Copy link'}</button></td></tr>)}
+          {!loading && rows.length === 0 && <tr><td colSpan={canViewEarnings ? 9 : 8} className="px-5 py-12 text-center text-neutral-500">No smartlinks match these filters.</td></tr>}
+          {loading && <tr><td colSpan={canViewEarnings ? 9 : 8} className="px-5 py-12 text-center text-neutral-500">Loading performance…</td></tr>}
+        </tbody>
+      </table></div>
+      <div className="flex items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm"><span className="text-neutral-500">Page {page} of {totalPages}</span><div className="flex gap-2"><button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="rounded-lg border px-3 py-1.5 font-medium disabled:opacity-40">Previous</button><button disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} className="rounded-lg border px-3 py-1.5 font-medium disabled:opacity-40">Next</button></div></div>
+    </section>
   </div>;
 }
+
+function Metric({ title, value }) { return <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-neutral-400">{title}</p><p className="mt-3 text-3xl font-black">{value}</p></article>; }
+function SortButton({ label, active, onClick }) { return <button onClick={onClick} className={`font-bold uppercase tracking-wider ${active ? 'text-neutral-950' : 'text-neutral-500'}`}>{label} {active ? '↕' : ''}</button>; }

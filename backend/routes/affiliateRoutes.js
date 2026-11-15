@@ -3,6 +3,7 @@ import { getAffiliateDashboard, getAffiliateSummary, getAffiliateActivity } from
 import { exportAffiliateAnalyticsCsv, getAffiliateAnalytics } from '../controllers/analyticsController.js';
 import { createSmartLink, deleteSmartLink, listSmartLinks, updateSmartLink } from '../controllers/smartLinkController.js';
 import { createTeamMember, deleteTeamMember, listTeamMembers, updateTeamMember } from '../controllers/teamController.js';
+import { getSmartlinkPerformance } from '../controllers/smartLinkPerformanceController.js';
 import { protect, requirePermission } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.get('/activity', protect, requirePermission('canViewAnalytics'), getAffil
 router.get('/analytics/export', protect, requirePermission('canViewAnalytics'), exportAffiliateAnalyticsCsv);
 router.get('/analytics', protect, requirePermission('canViewAnalytics'), getAffiliateAnalytics);
 router.get('/smartlinks', protect, listSmartLinks);
+router.get('/smartlinks/performance', protect, requirePermission('canViewAnalytics'), getSmartlinkPerformance);
 router.post('/smartlinks', protect, requirePermission('canCreateSmartlinks'), createSmartLink);
 router.put('/smartlinks/:id', protect, requirePermission('canCreateSmartlinks'), updateSmartLink);
 router.delete('/smartlinks/:id', protect, requirePermission('canCreateSmartlinks'), deleteSmartLink);

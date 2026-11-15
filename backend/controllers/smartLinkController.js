@@ -53,14 +53,13 @@ export const createSmartLink = async (req, res) => {
     const product = await SaasProduct.findOne({ _id: saasProductId, status: 'active' }).select('destinationUrl');
     if (!product) throw badRequest('Select an active SaaS product.');
     const managerAffiliateId = ownerId(req.user);
-    let assignedTeamMemberId = req.user.role === 'team_member' && ownSmartlinksOnly(req.user) ? req.user._id : null;
-    if (req.body.teamMemberId) {
-      if (!isObjectId(req.body.teamMemberId)) throw badRequest('Invalid team member.');
-      if (req.user.role === 'team_member' && ownSmartlinksOnly(req.user) && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('You can only assign smartlinks to yourself.');
-      const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId, status: 'active' });
-      if (!member) throw badRequest('Select an active team member from your team.');
-      assignedTeamMemberId = member._id;
-    }
+    if (req.user.role === 'affiliate' && !req.body.teamMemberId) throw badRequest('Choose a team member for this smartlink. Standalone smartlinks are not allowed.');
+    if (req.user.role === 'team_member' && req.body.teamMemberId && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('Team members can only create smartlinks assigned to themselves.');
+    const assignedId = req.user.role === 'team_member' ? req.user._id : req.body.teamMemberId;
+    if (!isObjectId(assignedId)) throw badRequest('A valid team member is required.');
+    const member = await TeamMember.findOne({ _id: assignedId, managerAffiliateId, status: 'active' });
+    if (!member) throw badRequest('Select an active team member from your team.');
+    const assignedTeamMemberId = member._id;
     const item = await SmartLink.create({ affiliateId: managerAffiliateId, name, code: await createUniqueSmartCode(), saasProductId, assignedTeamMemberId });
     await item.populate([{ path: 'saasProductId', select: 'name slug' }, { path: 'assignedTeamMemberId', select: 'name email subAffiliateCode status' }]);
     return res.status(201).json(sanitizeSmartLink(item, req.user));
@@ -96,15 +95,11 @@ export const updateSmartLink = async (req, res) => {
       link.destinationUrl = destinationUrl;
     }
     if (req.body.teamMemberId !== undefined) {
-      if (!req.body.teamMemberId && ownSmartlinksOnly(req.user)) throw badRequest('You cannot remove your team assignment from this smartlink.');
-      if (!req.body.teamMemberId) link.assignedTeamMemberId = null;
-      else {
-        if (!isObjectId(req.body.teamMemberId)) throw badRequest('Invalid team member.');
-        if (req.user.role === 'team_member' && ownSmartlinksOnly(req.user) && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('You can only assign smartlinks to yourself.');
-        const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId: ownerId(req.user), status: 'active' });
-        if (!member) throw badRequest('Select an active team member from your team.');
-        link.assignedTeamMemberId = member._id;
-      }
+      if (!req.body.teamMemberId || !isObjectId(req.body.teamMemberId)) throw badRequest('A team member assignment is required.');
+      if (req.user.role === 'team_member' && String(req.body.teamMemberId) !== String(req.user._id)) throw badRequest('Team members can only assign smartlinks to themselves.');
+      const member = await TeamMember.findOne({ _id: req.body.teamMemberId, managerAffiliateId: ownerId(req.user), status: 'active' });
+      if (!member) throw badRequest('Select an active team member from your team.');
+      link.assignedTeamMemberId = member._id;
     }
     await link.save();
     await link.populate([{ path: 'saasProductId', select: 'name slug' }, { path: 'assignedTeamMemberId', select: 'name email subAffiliateCode status' }]);
