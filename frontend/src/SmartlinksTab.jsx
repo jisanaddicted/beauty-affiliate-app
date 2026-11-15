@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Check, Copy, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (days) => {
@@ -19,7 +19,6 @@ export default function SmartlinksTab({ token, canViewEarnings = true, canFilter
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState('');
 
   const params = useMemo(() => ({ ...filters, ...sort, page, limit: 10 }), [filters, sort, page]);
   const loadPerformance = useCallback(async () => {
@@ -49,15 +48,6 @@ export default function SmartlinksTab({ token, canViewEarnings = true, canFilter
     setPage(1);
     setSort((current) => ({ sortBy, sortOrder: current.sortBy === sortBy && current.sortOrder === 'desc' ? 'asc' : 'desc' }));
   };
-  const copyLink = async (row) => {
-    const url = new URL(row.shortUrlPath || `/s/${encodeURIComponent(row.code)}`, window.location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(row._id);
-      window.setTimeout(() => setCopied(''), 1600);
-    } catch { setError(`Copy this link: ${url}`); }
-  };
-
   const summary = data?.summary || {};
   const rows = data?.items || [];
   const totalPages = Math.max(1, data?.totalPages || 0);
@@ -87,15 +77,15 @@ export default function SmartlinksTab({ token, canViewEarnings = true, canFilter
 
     <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5"><div><h3 className="font-bold">Campaign performance</h3><p className="mt-1 text-xs text-neutral-500">{data?.total || 0} smartlinks in this view</p></div></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm">
+      <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm">
         <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500"><tr>
-          <th className="px-4 py-3"><SortButton label="Smartlink" active={sort.sortBy === 'name'} onClick={() => toggleSort('name')} /></th><th className="px-4 py-3">Target SaaS</th><th className="px-4 py-3">Team member</th>
-          <th className="px-4 py-3 text-right"><SortButton label="Clicks" active={sort.sortBy === 'clicks'} onClick={() => toggleSort('clicks')} /></th><th className="px-4 py-3 text-right"><SortButton label="Signups" active={sort.sortBy === 'signups'} onClick={() => toggleSort('signups')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversions" active={sort.sortBy === 'conversions'} onClick={() => toggleSort('conversions')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversion rate" active={sort.sortBy === 'conversionRate'} onClick={() => toggleSort('conversionRate')} /></th>{canViewEarnings && <th className="px-4 py-3 text-right"><SortButton label="Earnings" active={sort.sortBy === 'totalEarnings'} onClick={() => toggleSort('totalEarnings')} /></th>}<th className="px-4 py-3">Link</th>
+          <th className="px-4 py-3"><SortButton label="Smartlink" active={sort.sortBy === 'name'} onClick={() => toggleSort('name')} /></th><th className="px-4 py-3">Team member</th>
+          <th className="px-4 py-3 text-right"><SortButton label="Clicks" active={sort.sortBy === 'clicks'} onClick={() => toggleSort('clicks')} /></th><th className="px-4 py-3 text-right"><SortButton label="Signups" active={sort.sortBy === 'signups'} onClick={() => toggleSort('signups')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversions" active={sort.sortBy === 'conversions'} onClick={() => toggleSort('conversions')} /></th><th className="px-4 py-3 text-right"><SortButton label="Conversion rate" active={sort.sortBy === 'conversionRate'} onClick={() => toggleSort('conversionRate')} /></th>{canViewEarnings && <th className="px-4 py-3 text-right"><SortButton label="Earnings" active={sort.sortBy === 'totalEarnings'} onClick={() => toggleSort('totalEarnings')} /></th>}
         </tr></thead>
         <tbody className="divide-y divide-neutral-100">
-          {!loading && rows.map((row) => <tr key={row._id} className="hover:bg-neutral-50"><td className="px-4 py-4"><span className="block font-semibold">{row.name}</span><span className="mt-1 block font-mono text-[10px] text-neutral-400">/s/{row.code}</span></td><td className="px-4 py-4">{row.saasProduct}</td><td className="px-4 py-4">{row.teamMember}</td><td className="px-4 py-4 text-right">{row.clicks}</td><td className="px-4 py-4 text-right">{row.signups}</td><td className="px-4 py-4 text-right">{row.conversions}</td><td className="px-4 py-4 text-right">{Number(row.conversionRate || 0).toFixed(2)}%</td>{canViewEarnings && <td className="px-4 py-4 text-right font-semibold">{money(row.totalEarnings)}</td>}<td className="px-4 py-4"><button onClick={() => copyLink(row)} className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold hover:bg-neutral-50">{copied === row._id ? <Check size={13} /> : <Copy size={13} />}{copied === row._id ? 'Copied' : 'Copy link'}</button></td></tr>)}
-          {!loading && rows.length === 0 && <tr><td colSpan={canViewEarnings ? 9 : 8} className="px-5 py-12 text-center text-neutral-500">No smartlinks match these filters.</td></tr>}
-          {loading && <tr><td colSpan={canViewEarnings ? 9 : 8} className="px-5 py-12 text-center text-neutral-500">Loading performance…</td></tr>}
+          {!loading && rows.map((row) => <tr key={row._id} className="hover:bg-neutral-50"><td className="px-4 py-4"><span className="block font-semibold">{row.name}</span><span className="mt-1 block font-mono text-[10px] text-neutral-400">/s/{row.code}</span></td><td className="px-4 py-4">{row.teamMember}</td><td className="px-4 py-4 text-right">{row.clicks}</td><td className="px-4 py-4 text-right">{row.signups}</td><td className="px-4 py-4 text-right">{row.conversions}</td><td className="px-4 py-4 text-right">{Number(row.conversionRate || 0).toFixed(2)}%</td>{canViewEarnings && <td className="px-4 py-4 text-right font-semibold">{money(row.totalEarnings)}</td>}</tr>)}
+          {!loading && rows.length === 0 && <tr><td colSpan={canViewEarnings ? 7 : 6} className="px-5 py-12 text-center text-neutral-500">No smartlinks match these filters.</td></tr>}
+          {loading && <tr><td colSpan={canViewEarnings ? 7 : 6} className="px-5 py-12 text-center text-neutral-500">Loading performance…</td></tr>}
         </tbody>
       </table></div>
       <div className="flex items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm"><span className="text-neutral-500">Page {page} of {totalPages}</span><div className="flex gap-2"><button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="rounded-lg border px-3 py-1.5 font-medium disabled:opacity-40">Previous</button><button disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} className="rounded-lg border px-3 py-1.5 font-medium disabled:opacity-40">Next</button></div></div>

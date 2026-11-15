@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, ArrowUpRight, LayoutDashboard, Link2, LogOut, LockKeyhole, Mail, Store, UserRound, Users, Wallet } from 'lucide-react';
+import { Activity, LayoutDashboard, Link2, LogOut, LockKeyhole, Mail, Store, UserRound, Users, Wallet } from 'lucide-react';
 import MarketplaceTab from './MarketplaceTab.jsx';
 import PayoutsTab from './PayoutsTab.jsx';
 import AnalyticsTab from './AnalyticsTab.jsx';
@@ -177,17 +177,6 @@ export default function App() {
           <BalanceCard title="Pending clearance" amount={summary.pendingClearance} detail="Waiting for the SaaS product's refund holding period to finish." tone="blue" />
           <BalanceCard title="Available to withdraw" amount={summary.availableBalance} detail="Available commissions, less withdrawal requests awaiting approval." tone="green" />
         </section> : <section className="mb-6 grid gap-4 sm:grid-cols-3"><CountCard title="Clicks" value={affiliate.totalClicks} /><CountCard title="Signups" value={affiliate.stats?.signups} /><CountCard title="Conversions" value={affiliate.stats?.conversions} /></section>}
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <div className="mb-4"><h2 className="font-bold">Your partner workspace</h2><p className="mt-1 text-sm text-neutral-500">Manage promoted products, review performance, and track your payouts.</p></div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {role === 'affiliate' && <QuickLink title="Explore SaaS products" detail="Find products and copy your referral links." onClick={() => setActiveTab('marketplace')} />}
-            {navItems.some((item) => item.id === 'smartlinks') && <QuickLink title="Manage smartlinks" detail="Open your campaign links and assignments." onClick={() => setActiveTab('smartlinks')} />}
-            {permissions.canViewAnalytics && <QuickLink title="Open analytics" detail="Review clicks, signups, upgrades, and earnings." onClick={() => setActiveTab('analytics')} />}
-            {permissions.canManageTeam && <QuickLink title="Manage your team" detail="Review team access and performance." onClick={() => setActiveTab('team')} />}
-            {permissions.canRequestPayouts && <QuickLink title="Manage payouts" detail="Review your withdrawal requests and history." onClick={() => setActiveTab('payouts')} />}
-            {role === 'team_member' && permissions.canCreateSmartlinks && <QuickLink title="Generate my smartlink" detail="Create a campaign link assigned to your profile." onClick={() => setShowProfileSmartlink(true)} />}
-          </div>
-        </section>
       </>}
       {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
       {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} />}
@@ -211,8 +200,4 @@ function BalanceCard({ title, amount, detail, tone }) {
 
 function CountCard({ title, value }) {
   return <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-neutral-400">{title}</p><p className="mt-3 text-3xl font-black">{Number(value || 0).toLocaleString()}</p></article>;
-}
-
-function QuickLink({ title, detail, onClick }) {
-  return <button onClick={onClick} className="group flex items-start justify-between rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-400 hover:bg-neutral-50"><span><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs leading-5 text-neutral-500">{detail}</span></span><ArrowUpRight size={17} className="shrink-0 text-neutral-400 transition group-hover:text-neutral-950" /></button>;
 }

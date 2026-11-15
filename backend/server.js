@@ -42,17 +42,10 @@ mongoose.connect(MONGODB_URI)
     console.error('❌ MongoDB database connection error:', error.message);
   });
 
-// 💓 Health Check Endpoint - Keeps the server alive and monitors status
-app.get('/api/health', (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  
-  res.status(200).json({
-    status: 'ok',
-    message: 'Beauty Affiliate Backend is running',
-    timestamp: new Date().toISOString(),
-    database: dbStatus,
-    uptime: process.uptime()
-  });
+// Render health checks and external schedulers can use these lightweight endpoints.
+app.get(['/api/health', '/api/keep-alive'], (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ status: 'ok' });
 });
 
 // Serve the Vite production build from this same Render web service.
