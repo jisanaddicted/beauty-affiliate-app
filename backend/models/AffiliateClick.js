@@ -22,4 +22,6 @@ const affiliateClickSchema = new mongoose.Schema(
   { collection: 'affiliate_clicks' }
 );
 
+affiliateClickSchema.index({ affiliateId: 1, timestamp: -1, saasProductId: 1 });
+
 export default mongoose.model('AffiliateClick', affiliateClickSchema);

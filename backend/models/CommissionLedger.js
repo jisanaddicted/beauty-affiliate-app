@@ -20,5 +20,6 @@ const commissionLedgerSchema = new mongoose.Schema({
 }, { timestamps: true, collection: 'commission_ledger' });
 
 commissionLedgerSchema.index({ affiliateId: 1, status: 1, createdAt: -1 });
+commissionLedgerSchema.index({ affiliateId: 1, createdAt: -1, status: 1, saasProductId: 1 });
 
 export default mongoose.model('CommissionLedger', commissionLedgerSchema);

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, LayoutDashboard, LogOut, LockKeyhole, Mail, Store, Wallet } from 'lucide-react';
+import { Activity, ArrowUpRight, LayoutDashboard, LogOut, LockKeyhole, Mail, Store, Wallet } from 'lucide-react';
 import MarketplaceTab from './MarketplaceTab.jsx';
 import PayoutsTab from './PayoutsTab.jsx';
-import ReferralActivity from './ReferralActivity.jsx';
+import AnalyticsTab from './AnalyticsTab.jsx';
 
 const emptySummary = { lockedBalance: 0, pendingClearance: 0, availableBalance: 0, totalPaid: 0, totalEarned: 0 };
 
@@ -116,7 +116,7 @@ export default function App() {
   const navItems = [
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'marketplace', label: 'SaaS marketplace', icon: Store },
-    { id: 'activity', label: 'Referral activity', icon: Activity },
+    { id: 'analytics', label: 'SaaS analytics', icon: Activity },
     { id: 'payouts', label: 'Payouts', icon: Wallet },
   ];
 
@@ -139,14 +139,17 @@ export default function App() {
           <BalanceCard title="Pending clearance" amount={summary.pendingClearance} detail="Waiting for the SaaS product's refund holding period to finish." tone="blue" />
           <BalanceCard title="Available to withdraw" amount={summary.availableBalance} detail="Available commissions, less withdrawal requests awaiting approval." tone="green" />
         </section>
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Tracked link clicks</p><p className="mt-2 text-3xl font-black">{affiliate.totalClicks || 0}</p></div>
-          <div className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Lifetime earned</p><p className="mt-2 text-3xl font-black">${Number(summary.totalEarned || 0).toFixed(2)}</p></div>
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="mb-4"><h2 className="font-bold">Your partner workspace</h2><p className="mt-1 text-sm text-neutral-500">Manage promoted products, review performance, and track your payouts.</p></div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <QuickLink title="Explore SaaS products" detail="Find products and copy your referral links." onClick={() => setActiveTab('marketplace')} />
+            <QuickLink title="Open analytics" detail="Review clicks, signups, upgrades, and earnings." onClick={() => setActiveTab('analytics')} />
+            <QuickLink title="Manage payouts" detail="Review your withdrawal requests and history." onClick={() => setActiveTab('payouts')} />
+          </div>
         </section>
-        <div className="mt-6"><ReferralActivity token={localStorage.getItem('token')} /></div>
       </>}
       {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
-      {activeTab === 'activity' && <ReferralActivity token={localStorage.getItem('token')} />}
+      {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} />}
       {activeTab === 'payouts' && <PayoutsTab summary={summary} onSummaryUpdate={setSummary} />}
     </main>
   </div>;
@@ -159,4 +162,8 @@ function BalanceCard({ title, amount, detail, tone }) {
     <p className="mt-3 text-3xl font-black">${Number(amount || 0).toFixed(2)}</p>
     <p className={`mt-3 rounded-lg px-2.5 py-2 text-xs ${tones[tone]}`}>{detail}</p>
   </article>;
+}
+
+function QuickLink({ title, detail, onClick }) {
+  return <button onClick={onClick} className="group flex items-start justify-between rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-400 hover:bg-neutral-50"><span><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs leading-5 text-neutral-500">{detail}</span></span><ArrowUpRight size={17} className="shrink-0 text-neutral-400 transition group-hover:text-neutral-950" /></button>;
 }

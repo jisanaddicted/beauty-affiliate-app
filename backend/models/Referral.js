@@ -8,5 +8,6 @@ const referralSchema = new mongoose.Schema({
 }, { timestamps: true, collection: 'referrals' });
 
 referralSchema.index({ saasProductId: 1, referredUserId: 1 }, { unique: true });
+referralSchema.index({ affiliateId: 1, createdAt: -1, saasProductId: 1 });
 
 export default mongoose.model('Referral', referralSchema);
