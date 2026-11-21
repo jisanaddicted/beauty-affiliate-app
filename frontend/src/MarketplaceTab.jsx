@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, Megaphone } from 'lucide-react';
+import { ExternalLink, Link2, Megaphone } from 'lucide-react';
 
 const money = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -18,27 +18,13 @@ function PromoResources({ resources }) {
   })}</div>;
 }
 
-export default function MarketplaceTab({ products, affiliateCode }) {
-  const [copiedSlug, setCopiedSlug] = useState('');
+export default function MarketplaceTab({ products, onGoToSmartlinks }) {
   const [promoProduct, setPromoProduct] = useState(null);
-  const [copyError, setCopyError] = useState('');
-
-  const copyReferralLink = async (product) => {
-    const url = new URL(`/api/track/${encodeURIComponent(product.slug)}`, window.location.origin);
-    url.searchParams.set(product.refParamKey || 'ref', affiliateCode);
-    try {
-      await navigator.clipboard.writeText(url.toString());
-      setCopiedSlug(product.slug);
-      setCopyError('');
-      window.setTimeout(() => setCopiedSlug(''), 1800);
-    } catch {
-      setCopyError('Clipboard access failed. Copy the link from your browser address bar permissions.');
-    }
-  };
 
   if (!products.length) return <div className="rounded-2xl border bg-white p-8 text-center text-sm text-neutral-500">No SaaS products are available yet.</div>;
 
   return <>
+    <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">Promote SaaS products through smartlinks. Create and share your smartlinks from the Smartlinks section.</p>
     <div className="grid gap-5 xl:grid-cols-2">
       {products.map((product) => (
         <article key={product._id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -71,9 +57,8 @@ export default function MarketplaceTab({ products, affiliateCode }) {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button onClick={() => copyReferralLink(product)} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-neutral-800">
-                {copiedSlug === product.slug ? <Check size={14} /> : <Copy size={14} />}
-                {copiedSlug === product.slug ? 'Copied referral link' : 'Copy referral link'}
+              <button onClick={onGoToSmartlinks} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-neutral-800">
+                <Link2 size={14} /> Create a smartlink
               </button>
               <button onClick={() => setPromoProduct(product)} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><Megaphone size={14} /> Promo assets & swipe copy</button>
             </div>
@@ -81,8 +66,6 @@ export default function MarketplaceTab({ products, affiliateCode }) {
         </article>
       ))}
     </div>
-    {copyError && <p role="alert" className="mt-3 text-sm text-red-700">{copyError}</p>}
-
     {promoProduct && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => setPromoProduct(null)}>
       <section role="dialog" aria-modal="true" aria-labelledby="promo-title" className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="mb-5 flex items-start justify-between gap-4">

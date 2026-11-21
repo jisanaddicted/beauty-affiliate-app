@@ -188,7 +188,7 @@ export default function App() {
           <BalanceCard title="Available to withdraw" amount={summary.availableBalance} detail="Available commissions, less withdrawal requests awaiting approval." tone="green" />
         </section> : <section className="mb-6 grid gap-4 sm:grid-cols-3"><CountCard title="Clicks" value={affiliate.totalClicks} /><CountCard title="Signups" value={affiliate.stats?.signups} /><CountCard title="Conversions" value={affiliate.stats?.conversions} /></section>}
       </>}
-      {activeTab === 'marketplace' && <MarketplaceTab products={products} affiliateCode={affiliate.affiliateCode} />}
+      {activeTab === 'marketplace' && <MarketplaceTab products={products} onGoToSmartlinks={() => setActiveTab('smartlinks')} />}
       {activeTab === 'analytics' && <AnalyticsTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} />}
       {activeTab === 'smartlinks' && <SmartlinksTab token={localStorage.getItem('token')} canViewEarnings={permissions.canViewEarnings} canFilterTeam={role === 'affiliate' || !permissions.canViewOwnSmartlinksOnly} />}
       {activeTab === 'profile' && role === 'team_member' && <TeamProfileTab token={localStorage.getItem('token')} profile={affiliate} products={products} />}
