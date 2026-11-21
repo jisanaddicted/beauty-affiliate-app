@@ -66,6 +66,7 @@ export const getSmartlinkPerformance = async (req, res) => {
     let unlinkedTeamSignupRows = [];
     let conversionRows = [];
     let earningsRows = [];
+    let unlinkedTeamEarningsRows = [];
     let uniqueVisitorRows = [];
     if (linkIds.length) {
       const eventBase = { affiliateId: managerAffiliateId, smartLinkId: { $in: linkIds } };
@@ -119,14 +120,29 @@ export const getSmartlinkPerformance = async (req, res) => {
           ...ledgerPipeline(),
           { $group: { _id: '$referral.smartLinkId', totalEarnings: { $sum: { $toDouble: '$amount' } } } },
         ]),
+        req.user.permissions?.canViewEarnings === false || !assignedMemberIds.length ? Promise.resolve([]) : CommissionLedger.aggregate([
+          { $match: {
+            affiliateId: managerAffiliateId,
+            teamMemberId: { $in: assignedMemberIds },
+            createdAt: { $gte: startDate, $lte: endDate },
+            status: { $ne: 'refunded' },
+            ...(saasProductId ? { saasProductId } : {}),
+            ...(teamMemberId ? { teamMemberId } : {}),
+          } },
+          { $lookup: { from: 'referrals', localField: 'referralId', foreignField: '_id', as: 'referral' } },
+          { $unwind: '$referral' },
+          { $match: { 'referral.affiliateId': managerAffiliateId, 'referral.smartLinkId': null } },
+          { $group: { _id: '$teamMemberId', totalEarnings: { $sum: { $toDouble: '$amount' } } } },
+        ]),
       ];
-      [clickRows, uniqueVisitorRows, signupRows, unlinkedTeamSignupRows, conversionRows, earningsRows] = await Promise.all(tasks);
+      [clickRows, uniqueVisitorRows, signupRows, unlinkedTeamSignupRows, conversionRows, earningsRows, unlinkedTeamEarningsRows] = await Promise.all(tasks);
     }
 
     const toMap = (rows, key) => new Map(rows.map((row) => [String(row._id), Number(row[key]) || 0]));
     const clicksByLink = toMap(clickRows, 'clicks');
     const visitorsByLink = toMap(clickRows, 'uniqueVisitors');
     const signupsByLink = toMap(signupRows, 'signups');
+    const earningsByLink = toMap(earningsRows, 'totalEarnings');
     // If the SaaS app sent the team referral code but omitted `smartlink_code`,
     // attribute the signup only when that member has exactly one campaign for
     // the product in this view. With multiple campaigns, the source is unknown.
@@ -145,8 +161,14 @@ export const getSmartlinkPerformance = async (req, res) => {
         signupsByLink.set(key, (signupsByLink.get(key) || 0) + Number(signup.signups || 0));
       }
     }
+    for (const earning of unlinkedTeamEarningsRows) {
+      const memberLinks = linksByMember.get(String(earning._id)) || [];
+      if (memberLinks.length === 1) {
+        const key = String(memberLinks[0]._id);
+        earningsByLink.set(key, (earningsByLink.get(key) || 0) + Number(earning.totalEarnings || 0));
+      }
+    }
     const conversionsByLink = toMap(conversionRows, 'conversions');
-    const earningsByLink = toMap(earningsRows, 'totalEarnings');
 
     const rows = links.map((link) => {
       const clicks = clicksByLink.get(String(link._id)) || 0;
