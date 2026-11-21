@@ -63,6 +63,7 @@ export const getSmartlinkPerformance = async (req, res) => {
 
     let clickRows = [];
     let signupRows = [];
+    let unlinkedTeamSignupRows = [];
     let conversionRows = [];
     let earningsRows = [];
     let uniqueVisitorRows = [];
@@ -74,6 +75,8 @@ export const getSmartlinkPerformance = async (req, res) => {
       const referralMatch = { ...eventBase, createdAt: { $gte: startDate, $lte: endDate } };
       if (saasProductId) referralMatch.saasProductId = saasProductId;
       if (teamMemberId) referralMatch.teamMemberId = teamMemberId;
+      const assignedMemberIds = [...new Set(links.map((link) => link.assignedTeamMemberId?._id?.toString()).filter(Boolean))]
+        .map((id) => new mongoose.Types.ObjectId(id));
 
       const ledgerPipeline = (typeFilter = {}) => [
         { $match: { affiliateId: managerAffiliateId, createdAt: { $gte: startDate, $lte: endDate }, status: { $ne: 'refunded' }, ...typeFilter, ...(saasProductId ? { saasProductId } : {}), ...(teamMemberId ? { teamMemberId } : {}) } },
@@ -97,6 +100,16 @@ export const getSmartlinkPerformance = async (req, res) => {
           { $match: referralMatch },
           { $group: { _id: '$smartLinkId', signups: { $sum: 1 } } },
         ]),
+        assignedMemberIds.length ? Referral.aggregate([
+          { $match: {
+            affiliateId: managerAffiliateId,
+            teamMemberId: { $in: assignedMemberIds },
+            smartLinkId: null,
+            createdAt: { $gte: startDate, $lte: endDate },
+            ...(saasProductId ? { saasProductId } : {}),
+          } },
+          { $group: { _id: '$teamMemberId', signups: { $sum: 1 } } },
+        ]) : Promise.resolve([]),
         CommissionLedger.aggregate([
           ...ledgerPipeline({ type: 'plan_purchase' }),
           { $group: { _id: '$referral.smartLinkId', referrals: { $addToSet: '$referralId' } } },
@@ -107,13 +120,31 @@ export const getSmartlinkPerformance = async (req, res) => {
           { $group: { _id: '$referral.smartLinkId', totalEarnings: { $sum: { $toDouble: '$amount' } } } },
         ]),
       ];
-      [clickRows, uniqueVisitorRows, signupRows, conversionRows, earningsRows] = await Promise.all(tasks);
+      [clickRows, uniqueVisitorRows, signupRows, unlinkedTeamSignupRows, conversionRows, earningsRows] = await Promise.all(tasks);
     }
 
     const toMap = (rows, key) => new Map(rows.map((row) => [String(row._id), Number(row[key]) || 0]));
     const clicksByLink = toMap(clickRows, 'clicks');
     const visitorsByLink = toMap(clickRows, 'uniqueVisitors');
     const signupsByLink = toMap(signupRows, 'signups');
+    // If the SaaS app sent the team referral code but omitted `smartlink_code`,
+    // attribute the signup only when that member has exactly one campaign for
+    // the product in this view. With multiple campaigns, the source is unknown.
+    const linksByMember = new Map();
+    for (const link of links) {
+      const assignedId = link.assignedTeamMemberId?._id?.toString();
+      if (!assignedId) continue;
+      const memberLinks = linksByMember.get(assignedId) || [];
+      memberLinks.push(link);
+      linksByMember.set(assignedId, memberLinks);
+    }
+    for (const signup of unlinkedTeamSignupRows) {
+      const memberLinks = linksByMember.get(String(signup._id)) || [];
+      if (memberLinks.length === 1) {
+        const key = String(memberLinks[0]._id);
+        signupsByLink.set(key, (signupsByLink.get(key) || 0) + Number(signup.signups || 0));
+      }
+    }
     const conversionsByLink = toMap(conversionRows, 'conversions');
     const earningsByLink = toMap(earningsRows, 'totalEarnings');
 
