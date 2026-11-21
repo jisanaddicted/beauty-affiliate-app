@@ -63,6 +63,21 @@ const handleSignup = async (product, payload) => {
     await session.withTransaction(async () => {
       const existing = await Referral.findOne({ saasProductId: product._id, referredUserId }).session(session);
       if (existing) {
+        // Some SaaS integrations may first report the signup with only the
+        // referral code, then retry with smartlink_code after attribution has
+        // been persisted. Enrich an unattributed referral so campaign
+        // performance can include that signup without creating a duplicate.
+        if (!existing.smartLinkId && payload.smartlink_code) {
+          const { affiliate, teamMember, smartLink } = await resolveAttribution(product, payload, session);
+          if (String(existing.affiliateId) === String(affiliate._id) && smartLink) {
+            existing.smartLinkId = smartLink._id;
+            existing.teamMemberId = teamMember?._id || null;
+            await existing.save({ session });
+            await SmartLink.updateOne({ _id: smartLink._id }, { $inc: { 'stats.signups': 1 } }, { session });
+            result = { duplicate: true, attributed: true, referralId: existing._id };
+            return;
+          }
+        }
         result = { duplicate: true, referralId: existing._id };
         return;
       }
